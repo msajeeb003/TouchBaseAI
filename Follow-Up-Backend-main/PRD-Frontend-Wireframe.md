@@ -1,0 +1,817 @@
+# PRD — Follow Up Dashboard (Frontend Wireframe)
+
+## 1. Product Overview
+
+**Product Name:** Follow Up Dashboard
+**Purpose:** Lead management + automated follow-up email/SMS sequences powered by AI-generated content.
+**User:** Single user (business owner/agency founder) — MVP, no team/roles.
+**Backend:** REST API (Express + Prisma + PostgreSQL)
+
+---
+
+## 2. Tech Stack (Wireframe Phase)
+
+- **HTML5** — structure
+- **Tailwind CSS** (CDN) — styling
+- **Static pages** — no JS framework, clickable prototype only
+
+---
+
+## 2.1. Information Architecture
+
+```
+Follow Up Dashboard
+│
+├── 🔐 Auth Pages
+│   ├── Login
+│   └── Register
+│
+├── 📊 Dashboard (Home)
+│   ├── Stats Cards (total leads, active sequences, sent, failed)
+│   └── Recent Activity Feed
+│
+├── 👥 Leads
+│   ├── Leads List (table with filters + search)
+│   ├── Lead Detail Page
+│   │   ├── Lead Info Card
+│   │   ├── Transcripts Tab
+│   │   └── Sequences Tab
+│   ├── Add Lead (modal/drawer)
+│   ├── Edit Lead (modal/drawer)
+│   └── Import CSV (modal)
+│
+├── 📝 Transcripts (under Lead)
+│   ├── Transcript List
+│   ├── Add Transcript (manual)
+│   ├── Import from Fathom (modal)
+│   └── View Transcript (expandable)
+│
+├── 🤖 Prompt Templates
+│   ├── Template List (card grid)
+│   ├── Create/Edit Template (full page editor)
+│   └── Preview Template
+│
+├── 📬 Sequences
+│   ├── Sequence List (table with status filters)
+│   ├── Sequence Detail Page
+│   │   ├── Sequence Info + Status Badge
+│   │   ├── Steps Timeline (visual)
+│   │   ├── Step Cards (editable)
+│   │   └── Action Bar (Generate, Activate, Pause, Cancel)
+│   └── Create Sequence (wizard/drawer)
+│
+├── 🔗 Fathom Meetings
+│   ├── Meetings List
+│   └── Meeting Detail (transcript + summary)
+│
+└── ⚙️ Settings
+    ├── AI Configuration (provider, key, model)
+    ├── Fathom Integration (API key)
+    ├── SMTP Configuration (host, port, credentials)
+    └── TextMagic SMS (username, API key)
+```
+
+## 3. Industry Standard UI Patterns (SaaS Dashboard)
+
+### Layout: Sidebar + Content
+
+```
+┌──────────┬──────────────────────────────────────┐
+│          │  Header (breadcrumb + user menu)      │
+│  Sidebar │──────────────────────────────────────│
+│  (fixed) │                                      │
+│          │  Page Content                         │
+│  - Logo  │  (tables, forms, cards, modals)       │
+│  - Nav   │                                      │
+│          │                                      │
+└──────────┴──────────────────────────────────────┘
+```
+
+### Design Principles
+
+| Principle | Implementation |
+|-----------|---------------|
+| **Hierarchy** | Primary actions (blue buttons), secondary (outline), destructive (red) |
+| **Data density** | Tables with filters, pagination, status badges |
+| **Progressive disclosure** | List → Detail → Modal/Drawer for deep actions |
+| **Status visualization** | Color-coded badges (green=active, yellow=draft, red=failed, gray=completed) |
+| **Empty states** | Illustration + CTA when no data |
+| **Responsive** | Sidebar collapsible on mobile, tables scroll horizontal |
+| **Feedback** | Toast notifications for success/error, loading spinners |
+
+### Color System
+
+```
+Primary:     #2563EB (blue-600)     — CTAs, links, active states
+Success:     #16A34A (green-600)    — sent, active, success
+Warning:     #D97706 (amber-600)    — draft, pending, paused
+Danger:      #DC2626 (red-600)      — failed, cancelled, delete
+Neutral:     #6B7280 (gray-500)     — secondary text, borders
+Background:  #F9FAFB (gray-50)      — page background
+Surface:     #FFFFFF                — cards, modals
+```
+
+### Typography
+
+```
+Headings:  Inter / system-ui, font-semibold
+Body:      Inter / system-ui, font-normal
+Mono:      JetBrains Mono — for IDs, codes, API keys
+```
+
+---
+
+## 4. Page Structure & Wireframes
+
+### 4.1 Authentication Pages
+
+#### 4.1.1 Login Page (`/login`)
+
+```
+┌──────────────────────────────────────────────┐
+│                                              │
+│           ┌──────────────────┐               │
+│           │     🔒 Logo      │               │
+│           │                  │               │
+│           │  Email           │               │
+│           │  ┌─────────────┐ │               │
+│           │  │             │ │               │
+│           │  └─────────────┘ │               │
+│           │                  │               │
+│           │  Password        │               │
+│           │  ┌─────────────┐ │               │
+│           │  │             │ │               │
+│           │  └─────────────┘ │               │
+│           │                  │               │
+│           │  [  Sign In  ]   │               │
+│           │                  │               │
+│           │  Don't have      │               │
+│           │  account? Register│              │
+│           └──────────────────┘               │
+│                                              │
+└──────────────────────────────────────────────┘
+```
+
+- Centered card on gray background
+- Form validation inline (Zod-aligned errors)
+- JWT stored in localStorage/cookie
+
+#### 4.1.2 Register Page (`/register`)
+
+- Same layout as login
+- Fields: Email, Password, Confirm Password
+- Link to Login
+
+---
+
+### 4.2 Dashboard / Overview (`/dashboard`)
+
+```
+┌──────────┬──────────────────────────────────────┐
+│          │  Dashboard                            │
+│  SIDEBAR │──────────────────────────────────────│
+│          │                                      │
+│  📊 Dash │  ┌─────────┐ ┌─────────┐ ┌────────┐ │
+│  👥 Leads│  │ Total   │ │ Active  │ │ Sent   │ │
+│  📝 Trans│  │ Leads   │ │ Seqs    │ │ Today  │ │
+│  🎯 Templ│  │   124   │ │   8     │ │  12    │ │
+│  🔄 Seqs │  └─────────┘ └─────────┘ └────────┘ │
+│  ⚙️ Sett │                                      │
+│          │  ┌─────────┐ ┌─────────┐ ┌────────┐ │
+│          │  │ Failed  │ │ Draft   │ │ Compl. │ │
+│          │  │ Steps   │ │ Seqs    │ │ Seqs   │ │
+│          │  │   3     │ │   5     │ │  15    │ │
+│          │  └─────────┘ └─────────┘ └────────┘ │
+│          │                                      │
+│          │  Recent Activity                     │
+│          │  ┌──────────────────────────────────┐│
+│          │  │ ✅ Email sent to john@acme.com   ││
+│          │  │    Step 2 of "NoShow - John"     ││
+│          │  │    2 min ago                     ││
+│          │  │──────────────────────────────────││
+│          │  │ ❌ SMS failed to +1234567890     ││
+│          │  │    Step 3 of "AfterSale - Jane"  ││
+│          │  │    5 min ago                     ││
+│          │  │──────────────────────────────────││
+│          │  │ 🤖 Content generated for Step 1  ││
+│          │  │    "PRD - Mike" sequence         ││
+│          │  │    12 min ago                    ││
+│          │  └──────────────────────────────────┘│
+│          │                                      │
+└──────────┴──────────────────────────────────────┘
+```
+
+**Stat Cards:** 6 cards in 3x2 grid — Total Leads, Active Sequences, Sent Today, Failed Steps, Draft Sequences, Completed Sequences.
+
+**Recent Activity:** Timeline-style feed — last 10 send results (from `sendLog`).
+
+---
+
+### 4.3 Leads (`/leads`)
+
+#### 4.3.1 Leads List
+
+```
+┌──────────┬──────────────────────────────────────────────┐
+│          │  Leads                        [+ Add Lead]   │
+│  SIDEBAR │  [Import CSV]                                │
+│          │──────────────────────────────────────────────│
+│          │  Search: [___________]  Status: [All ▾]      │
+│          │  Stage: [All ▾]                              │
+│          │──────────────────────────────────────────────│
+│          │  Name      │ Company │ Stage    │ Status │ ⋯ │
+│          │──────────────────────────────────────────────│
+│          │  John S.   │ Acme    │ NoShow   │🟡 Proc │ → │
+│          │  Jane D.   │ Beta    │ AfterSale│🟢 Active│ → │
+│          │  Mike R.   │ Gamma   │ PRD      │🔴 Lost │ → │
+│          │  Sarah K.  │ Delta   │ HotLead  │🟡 Proc │ → │
+│          │──────────────────────────────────────────────│
+│          │  ← 1 2 3 ... 10 →                           │
+│          │                                              │
+└──────────┴──────────────────────────────────────────────┘
+```
+
+- **Filters:** Search (name/email/company), Status dropdown, FollowUpStage dropdown
+- **Table columns:** Name, Email, Company, Location, FollowUpStage (badge), Status (colored badge), Actions (→ view)
+- **Pagination:** Offset-based
+- **Empty state:** "No leads yet. Add your first lead or import from CSV."
+
+#### 4.3.2 Add Lead Modal
+
+```
+┌────────────────────────────────────┐
+│  Add New Lead                  ✕   │
+│────────────────────────────────────│
+│  Name *        [_______________]   │
+│  Email *       [_______________]   │
+│  Phone *       [_______________]   │
+│  Company *     [_______________]   │
+│  Location *    [_______________]   │
+│  Follow-up Stage [NoShow     ▾]   │
+│                                    │
+│        [Cancel]  [Save Lead]       │
+└────────────────────────────────────┘
+```
+
+#### 4.3.3 CSV Import Modal
+
+```
+┌────────────────────────────────────┐
+│  Import Leads from CSV         ✕   │
+│────────────────────────────────────│
+│                                    │
+│  ┌──────────────────────────────┐  │
+│  │  📁 Drag & drop CSV file    │  │
+│  │     or click to browse      │  │
+│  └──────────────────────────────┘  │
+│                                    │
+│  Required columns:                 │
+│  name, email, phone, company,      │
+│  location                          │
+│                                    │
+│  After upload → show results:      │
+│  ✅ 45 imported                    │
+│  ❌ 3 failed (show errors)         │
+│  ⚠️ 2 duplicates skipped           │
+│                                    │
+│              [Import]              │
+└────────────────────────────────────┘
+```
+
+#### 4.3.4 Lead Detail Page (`/leads/:id`)
+
+```
+┌──────────┬───────────────────────────────────────────┐
+│          │  ← Back to Leads                          │
+│  SIDEBAR │                                           │
+│          │  ┌─────────────────────────────────────┐  │
+│          │  │ John Smith                          │  │
+│          │  │ john@acme.com  •  +1 234 567 890    │  │
+│          │  │ Acme Corp  •  New York              │  │
+│          │  │                                     │  │
+│          │  │ Stage: 🏷️ NoShow                    │  │
+│          │  │ Status: 🟡 Processing               │  │
+│          │  │                                     │  │
+│          │  │ [Edit]  [Delete]                    │  │
+│          │  └─────────────────────────────────────┘  │
+│          │                                           │
+│          │  ┌─ Tabs ────────────────────────────┐    │
+│          │  │ [Transcripts]  [Sequences]        │    │
+│          │  └───────────────────────────────────┘    │
+│          │                                           │
+│          │  == TRANSCRIPTS TAB ==                     │
+│          │  [+ Add Transcript]  [Import from Fathom] │
+│          │                                           │
+│          │  ┌────────────────────────────────────┐   │
+│          │  │ 📄 Q1 Review Call                  │   │
+│          │  │    Source: fathom  •  Mar 4, 2026   │   │
+│          │  │    [View] [Delete]                  │   │
+│          │  │────────────────────────────────────│   │
+│          │  │ 📄 Discovery Call                  │   │
+│          │  │    Source: manual  •  Feb 28, 2026  │   │
+│          │  │    [View] [Delete]                  │   │
+│          │  └────────────────────────────────────┘   │
+│          │                                           │
+│          │  == SEQUENCES TAB ==                       │
+│          │  [+ Create Sequence]                      │
+│          │                                           │
+│          │  ┌────────────────────────────────────┐   │
+│          │  │ 🔄 NoShow Follow-up for John       │   │
+│          │  │    Status: 🟢 Active  •  6 steps    │   │
+│          │  │    3/6 sent  •  Template: NoShow    │   │
+│          │  │    [View]                           │   │
+│          │  └────────────────────────────────────┘   │
+│          │                                           │
+└──────────┴───────────────────────────────────────────┘
+```
+
+- **Lead info card** — top section with edit/delete
+- **Two tabs:** Transcripts, Sequences
+- **Transcripts tab:** list + add/import buttons
+- **Sequences tab:** list of sequences for this lead
+
+---
+
+### 4.4 Transcript Detail (`/leads/:id/transcripts/:tid`)
+
+```
+┌──────────┬───────────────────────────────────────────┐
+│          │  ← Back to John Smith                     │
+│  SIDEBAR │                                           │
+│          │  Q1 Review Call                            │
+│          │  Source: fathom  •  Mar 4, 2026            │
+│          │  Recording ID: 127009553                   │
+│          │                                           │
+│          │  ┌────────────────────────────────────┐   │
+│          │  │ @0:13 - Mosharof Hossen:           │   │
+│          │  │ Hi John, tell me about your        │   │
+│          │  │ project...                         │   │
+│          │  │                                    │   │
+│          │  │ @0:45 - John Smith:                │   │
+│          │  │ I need an AI tool for document     │   │
+│          │  │ processing. We have thousands of   │   │
+│          │  │ legal docs that need...            │   │
+│          │  │                                    │   │
+│          │  │ @1:20 - Mosharof Hossen:           │   │
+│          │  │ That's interesting. Let me explain  │   │
+│          │  │ how we can approach this...         │   │
+│          │  └────────────────────────────────────┘   │
+│          │                                           │
+└──────────┴───────────────────────────────────────────┘
+```
+
+- Read-only transcript view
+- Formatted with speaker grouping and timestamps
+- Edit button for manual transcripts
+
+---
+
+### 4.5 Import from Fathom Modal
+
+```
+┌────────────────────────────────────┐
+│  Import Transcript from Fathom ✕   │
+│────────────────────────────────────│
+│                                    │
+│  Recording ID *  [___________]     │
+│  Meeting Title * [___________]     │
+│  Meeting Date *  [___________]     │
+│                                    │
+│        [Cancel]  [Import]          │
+└────────────────────────────────────┘
+```
+
+---
+
+### 4.6 Prompt Templates (`/templates`)
+
+#### 4.6.1 Templates List
+
+```
+┌──────────┬──────────────────────────────────────────┐
+│          │  Prompt Templates          [+ New Template]│
+│  SIDEBAR │──────────────────────────────────────────│
+│          │                                          │
+│          │  ┌────────────────────────────────────┐  │
+│          │  │ 🎯 NoShow Follow-up                │  │
+│          │  │    Stage: NoShow                    │  │
+│          │  │    Updated: Mar 5, 2026             │  │
+│          │  │    [Edit] [Delete]                  │  │
+│          │  │────────────────────────────────────│  │
+│          │  │ 🎯 After Sale Follow-up            │  │
+│          │  │    Stage: After Sale                │  │
+│          │  │    Updated: Mar 4, 2026             │  │
+│          │  │    [Edit] [Delete]                  │  │
+│          │  │────────────────────────────────────│  │
+│          │  │ 🎯 Cancel Recovery                 │  │
+│          │  │    Stage: Cancel                    │  │
+│          │  │    Updated: Mar 3, 2026             │  │
+│          │  │    [Edit] [Delete]                  │  │
+│          │  └────────────────────────────────────┘  │
+│          │                                          │
+└──────────┴──────────────────────────────────────────┘
+```
+
+- Card list — not table (prompt text is long)
+- Name, stage badge, last updated
+
+#### 4.6.2 Template Create/Edit Page (`/templates/new` or `/templates/:id`)
+
+```
+┌──────────┬──────────────────────────────────────────┐
+│          │  Create Prompt Template                    │
+│  SIDEBAR │──────────────────────────────────────────│
+│          │                                          │
+│          │  Name *                                   │
+│          │  [NoShow Follow-up Template         ]     │
+│          │                                          │
+│          │  Follow-up Stage *                        │
+│          │  [NoShow                            ]     │
+│          │                                          │
+│          │  Prompt Text *                            │
+│          │  ┌──────────────────────────────────────┐│
+│          │  │ You are a Virtual Assistant for      ││
+│          │  │ {{BusinessName}}...                  ││
+│          │  │                                     ││
+│          │  │ 🎯 GOALS                            ││
+│          │  │ - Acknowledge politely that they    ││
+│          │  │   missed the call...                ││
+│          │  │                                     ││
+│          │  │ (large textarea, 20+ rows)          ││
+│          │  └──────────────────────────────────────┘│
+│          │                                          │
+│          │  Available Variables:                     │
+│          │  {{FirstName}} {{CalendlyLink}}           │
+│          │  {{SenderName}} {{BusinessName}}          │
+│          │                                          │
+│          │        [Cancel]  [Save Template]          │
+│          │                                          │
+└──────────┴──────────────────────────────────────────┘
+```
+
+- Large textarea for prompt (monospace font)
+- Variable hints below textarea
+- Preview mode (optional, future)
+
+---
+
+### 4.7 Sequences (`/sequences`)
+
+#### 4.7.1 Sequences List
+
+```
+┌──────────┬───────────────────────────────────────────────┐
+│          │  Sequences                    [+ New Sequence] │
+│  SIDEBAR │──────────────────────────────────────────────│
+│          │  Filter: [All ▾]  Status: [All ▾]            │
+│          │──────────────────────────────────────────────│
+│          │  Name          │ Lead    │ Steps │Status│ ⋯  │
+│          │──────────────────────────────────────────────│
+│          │  NoShow - John │ John S. │ 2/6   │🟢 Act│ →  │
+│          │  AfterSale-Jane│ Jane D. │ 0/4   │🟡 Dra│ →  │
+│          │  PRD - Mike    │ Mike R. │ 7/7   │✅ Com│ →  │
+│          │  Cancel - Sarah│ Sarah K.│ 3/5   │🔴 Can│ →  │
+│          │──────────────────────────────────────────────│
+│          │                                              │
+└──────────┴──────────────────────────────────────────────┘
+```
+
+- **Columns:** Name, Lead, Steps progress (sent/total), Status badge, Template
+- **Filters:** Status dropdown
+
+#### 4.7.2 Create Sequence Modal
+
+```
+┌────────────────────────────────────────┐
+│  Create New Sequence               ✕   │
+│────────────────────────────────────────│
+│                                        │
+│  Lead *          [Search lead...  ▾]   │
+│  Name *          [___________________] │
+│  Total Steps *   [6                 ]  │
+│  Prompt Template [Auto-detected    ▾]  │
+│                  (from lead's stage)   │
+│                                        │
+│          [Cancel]  [Create]            │
+└────────────────────────────────────────┘
+```
+
+- Lead selection: searchable dropdown
+- Total steps: number input (1-20)
+- Prompt template: auto-selected by lead's `followUpStage`, but overridable
+
+#### 4.7.3 Sequence Detail Page (`/sequences/:id`)
+
+```
+┌──────────┬───────────────────────────────────────────────┐
+│          │  ← Back to Sequences                          │
+│  SIDEBAR │                                               │
+│          │  ┌─────────────────────────────────────────┐  │
+│          │  │ NoShow Follow-up for John               │  │
+│          │  │ Lead: John Smith (Acme Corp)             │  │
+│          │  │ Template: NoShow Follow-up               │  │
+│          │  │ Status: 🟡 Draft                         │  │
+│          │  │ Steps: 2/6 created                       │  │
+│          │  │                                         │  │
+│          │  │ [▶ Activate] [✕ Cancel] [🗑 Delete]     │  │
+│          │  └─────────────────────────────────────────┘  │
+│          │                                               │
+│          │  Steps                    [+ Add Step]         │
+│          │  ┌─────────────────────────────────────────┐  │
+│          │  │                                         │  │
+│          │  │  1  📧 EMAIL    Mar 10   🟡 draft       │  │
+│          │  │     Subject: Missed you on our call...  │  │
+│          │  │     [View] [Generate] [Edit] [Delete]   │  │
+│          │  │                                         │  │
+│          │  │  2  💬 SMS      Mar 12   ⏳ pending      │  │
+│          │  │     No content yet                      │  │
+│          │  │     [Generate] [Edit] [Delete]          │  │
+│          │  │                                         │  │
+│          │  │  3  📧 EMAIL    Mar 15   ⏳ pending      │  │
+│          │  │     No content yet                      │  │
+│          │  │     [Generate] [Edit] [Delete]          │  │
+│          │  │                                         │  │
+│          │  │  4  💬 SMS      Mar 18   ⏳ pending      │  │
+│          │  │     No content yet                      │  │
+│          │  │     [Generate] [Edit] [Delete]          │  │
+│          │  │                                         │  │
+│          │  │  5  📧 EMAIL    — (not created yet)     │  │
+│          │  │                                         │  │
+│          │  │  6  💬 SMS      — (not created yet)     │  │
+│          │  │                                         │  │
+│          │  └─────────────────────────────────────────┘  │
+│          │                                               │
+└──────────┴───────────────────────────────────────────────┘
+```
+
+**Key interactions:**
+
+| Element | Action |
+|---------|--------|
+| **+ Add Step** | Opens add step modal |
+| **Generate** | Calls AI → fills content (chain enforced) |
+| **View** | Expands step → shows full content |
+| **Edit** | Opens edit modal (subject, content, scheduledAt, type) |
+| **Delete** | Confirms → deletes + auto-reorders |
+| **Activate** | Validates all steps ready → sequence active |
+| **Cancel** | Confirms → cancels sequence + skips unsent steps |
+| **Delete** | Only for draft/cancelled sequences |
+
+#### 4.7.4 Add Step Modal
+
+```
+┌────────────────────────────────────┐
+│  Add Step                      ✕   │
+│────────────────────────────────────│
+│                                    │
+│  Step Order *    [3             ]   │
+│  Type *          [EMAIL        ▾]  │
+│  Scheduled Date* [2026-03-15   ]   │
+│  Scheduled Time* [09:00        ]   │
+│                                    │
+│          [Cancel]  [Add Step]      │
+└────────────────────────────────────┘
+```
+
+#### 4.7.5 Step Content View (Expanded/Modal)
+
+```
+┌──────────────────────────────────────────────┐
+│  Step 1 — EMAIL                          ✕   │
+│  Status: 🟡 Draft  •  Scheduled: Mar 10      │
+│──────────────────────────────────────────────│
+│                                              │
+│  Subject:                                    │
+│  Missed you on our call — let's get your     │
+│  project roadmap ready                       │
+│                                              │
+│  Body:                                       │
+│  ┌──────────────────────────────────────────┐│
+│  │ Hi {{FirstName}},                       ││
+│  │                                         ││
+│  │ Looks like we missed each other on our  ││
+│  │ scheduled call — no problem at all!     ││
+│  │ From our chat, I really liked your idea ││
+│  │ about building an AI tool for...        ││
+│  │                                         ││
+│  │ Let's reconnect for a PRD session...    ││
+│  │                                         ││
+│  │ Best,                                   ││
+│  │ {{SenderName}}                          ││
+│  └──────────────────────────────────────────┘│
+│                                              │
+│  Send Log: —                                 │
+│                                              │
+│  [🔄 Regenerate]  [✏️ Edit]  [Close]          │
+│──────────────────────────────────────────────│
+│  For sent/failed steps:                      │
+│  Send Log: ✅ Email sent to john@acme.com    │
+│  Sent At: Mar 10, 2026 09:01 AM             │
+└──────────────────────────────────────────────┘
+```
+
+#### 4.7.6 Edit Step Modal
+
+```
+┌────────────────────────────────────────┐
+│  Edit Step 1                       ✕   │
+│────────────────────────────────────────│
+│                                        │
+│  Type *    [EMAIL ▾]                   │
+│                                        │
+│  Subject   [Missed you on our call...] │
+│                                        │
+│  Content                               │
+│  ┌──────────────────────────────────┐  │
+│  │ Hi {{FirstName}},               │  │
+│  │                                 │  │
+│  │ Looks like we missed each       │  │
+│  │ other on our scheduled call...  │  │
+│  │                                 │  │
+│  │ (editable textarea, 15 rows)    │  │
+│  └──────────────────────────────────┘  │
+│                                        │
+│  Scheduled Date  [2026-03-10]          │
+│  Scheduled Time  [09:00     ]          │
+│                                        │
+│          [Cancel]  [Save Changes]      │
+└────────────────────────────────────────┘
+```
+
+---
+
+### 4.8 Settings (`/settings`)
+
+```
+┌──────────┬───────────────────────────────────────────┐
+│          │  Settings                                  │
+│  SIDEBAR │───────────────────────────────────────────│
+│          │                                           │
+│          │  ┌─ AI Configuration ──────────────────┐  │
+│          │  │                                     │  │
+│          │  │  Provider    [OpenAI           ▾]   │  │
+│          │  │  API Key     [sk-p**************]   │  │
+│          │  │  Model       [gpt-4o-mini      ▾]   │  │
+│          │  │                                     │  │
+│          │  └─────────────────────────────────────┘  │
+│          │                                           │
+│          │  ┌─ Fathom Integration ────────────────┐  │
+│          │  │                                     │  │
+│          │  │  API Key     [fat-***************]   │  │
+│          │  │                                     │  │
+│          │  └─────────────────────────────────────┘  │
+│          │                                           │
+│          │  ┌─ SMTP (Email) ─────────────────────┐  │
+│          │  │                                     │  │
+│          │  │  Host         [smtp.gmail.com    ]  │  │
+│          │  │  Port         [587              ]   │  │
+│          │  │  Username     [artur@artech.com ]   │  │
+│          │  │  Password     [••••••••••••••••]    │  │
+│          │  │  From Name    [Artur Abdullin   ]   │  │
+│          │  │                                     │  │
+│          │  └─────────────────────────────────────┘  │
+│          │                                           │
+│          │  ┌─ TextMagic (SMS) ──────────────────┐  │
+│          │  │                                     │  │
+│          │  │  Username     [artech_digital   ]   │  │
+│          │  │  API Key      [tm-a**************]  │  │
+│          │  │                                     │  │
+│          │  └─────────────────────────────────────┘  │
+│          │                                           │
+│          │              [Save Settings]              │
+│          │                                           │
+└──────────┴───────────────────────────────────────────┘
+```
+
+- Grouped sections with visual separation
+- Masked API keys (backend already masks)
+- Save sends PATCH to `/settings`
+- Toast: "Settings updated successfully"
+
+---
+
+## 5. Sidebar Navigation
+
+```
+┌──────────────────┐
+│  📌 Follow Up     │
+│                    │
+│  📊 Dashboard     │
+│  👥 Leads         │
+│  🎯 Templates     │
+│  🔄 Sequences     │
+│  ⚙️ Settings      │
+│                    │
+│  ──────────────── │
+│  👤 user@email     │
+│  [Logout]         │
+│                    │
+└──────────────────┘
+```
+
+- Fixed left sidebar (w-64)
+- Active page highlighted (bg-blue-50, text-blue-600, left border)
+- Bottom: user email + logout
+- Collapsible on mobile (hamburger menu)
+
+---
+
+## 6. Status Badge System
+
+### Sequence Status
+
+| Status | Color | Badge |
+|--------|-------|-------|
+| draft | amber-100/amber-700 | `🟡 Draft` |
+| active | green-100/green-700 | `🟢 Active` |
+| paused | blue-100/blue-700 | `⏸ Paused` |
+| completed | gray-100/gray-700 | `✅ Completed` |
+| cancelled | red-100/red-700 | `🔴 Cancelled` |
+
+### Step Status
+
+| Status | Color | Badge |
+|--------|-------|-------|
+| pending | gray-100/gray-600 | `⏳ Pending` |
+| draft | amber-100/amber-700 | `🟡 Draft` |
+| scheduled | blue-100/blue-700 | `📅 Scheduled` |
+| sent | green-100/green-700 | `✅ Sent` |
+| failed | red-100/red-700 | `❌ Failed` |
+| skipped | gray-100/gray-500 | `⏭ Skipped` |
+
+### Lead Status
+
+| Status | Color |
+|--------|-------|
+| Processing | amber |
+| Active | green |
+| Replied | blue |
+| Booked | purple |
+| Won | green-700 |
+| Lost | red |
+| Cancel | gray |
+
+---
+
+## 7. Toast Notifications
+
+```
+┌──────────────────────────────────┐
+│ ✅ Lead created successfully      │  → top-right, auto-dismiss 3s
+└──────────────────────────────────┘
+
+┌──────────────────────────────────┐
+│ ❌ Failed to generate content     │  → top-right, manual dismiss
+│    SMTP settings not configured  │
+└──────────────────────────────────┘
+```
+
+---
+
+## 8. Pages Summary
+
+| # | Page | Route | Key Components |
+|---|------|-------|----------------|
+| 1 | Login | `/login` | Auth form |
+| 2 | Register | `/register` | Auth form |
+| 3 | Dashboard | `/dashboard` | Stat cards, activity feed |
+| 4 | Leads List | `/leads` | Table, filters, pagination |
+| 5 | Lead Detail | `/leads/:id` | Info card, tabs (transcripts/sequences) |
+| 6 | Transcript Detail | `/leads/:id/transcripts/:tid` | Formatted transcript view |
+| 7 | Templates List | `/templates` | Card list |
+| 8 | Template Create/Edit | `/templates/new`, `/templates/:id` | Form with large textarea |
+| 9 | Sequences List | `/sequences` | Table with progress |
+| 10 | Sequence Detail | `/sequences/:id` | Info card, steps timeline |
+| 11 | Settings | `/settings` | Grouped form sections |
+
+---
+
+## 9. Responsive Behavior
+
+| Breakpoint | Behavior |
+|------------|----------|
+| Desktop (≥1024px) | Sidebar fixed, full content |
+| Tablet (768-1023px) | Sidebar collapsible (overlay) |
+| Mobile (<768px) | Sidebar hidden (hamburger), tables horizontal scroll, modals fullscreen |
+
+---
+
+## 10. Wireframe File Structure
+
+```
+wireframes/
+├── index.html           (Login page — entry point)
+├── register.html
+├── dashboard.html
+├── leads.html
+├── lead-detail.html
+├── templates.html
+├── template-edit.html
+├── sequences.html
+├── sequence-detail.html
+├── settings.html
+└── components/
+    └── sidebar.html     (reusable sidebar snippet)
+```
+
+Each file: standalone HTML + Tailwind CDN. No JS logic — static clickable wireframe.

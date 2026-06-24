@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String           @id @default(uuid())
+  email           String           @unique
+  passwordHash    String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  settings        UserSettings?
+  leads           Lead[]
+  transcripts     LeadTranscript[]
+  promptTemplates PromptTemplate[]
+  sequences       Sequence[]
+
+  @@map("users")
+}
+
+model Lead {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  email         String?
+  phone         String?
+  notes         String?
+  company       String?
+  location      String?
+  status        String           @default("Not Active")
+  followUpStage String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  transcripts   LeadTranscript[]
+  sequences     Sequence[]
+
+  @@unique([userId, email])
+  @@index([userId])
+  @@map("leads")
+}
+
+model LeadTranscript {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId            String
+  lead              Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  source            String
+  fathomRecordingId Int?
+  meetingTitle      String
+  meetingDate       DateTime
+  transcript        String   @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([userId])
+  @@map("lead_transcripts")
+}
+
+model PromptTemplate {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  followUpStage String
+  promptText    String   @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sequences     Sequence[]
+
+  @@unique([userId, followUpStage])
+  @@index([userId])
+  @@map("prompt_templates")
+}
+
+model Sequence {
+  id               String          @id @default(uuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId           String
+  lead             Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  promptTemplateId String?
+  promptTemplate   PromptTemplate? @relation(fields: [promptTemplateId], references: [id], onDelete: SetNull)
+  name             String
+  totalSteps       Int
+  status           String          @default("draft")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  steps            SequenceStep[]
+
+  @@index([userId])
+  @@index([leadId])
+  @@map("sequences")
+}
+
+model SequenceStep {
+  id          String    @id @default(uuid())
+  sequenceId  String
+  sequence    Sequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  stepOrder   Int
+  stepType    String
+  subject     String?
+  content     String?   @db.Text
+  status      String    @default("pending")
+  scheduledAt DateTime
+  sentAt              DateTime?
+  sendLog             String?   @db.Text
+  externalMessageId   String?   @unique
+  createdAt           DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  callLogs    CallLog[]
+
+  @@unique([sequenceId, stepOrder])
+  @@index([sequenceId])
+  @@map("sequence_steps")
+}
+
+model CallLog {
+  id                   String   @id @default(uuid())
+  stepId               String
+  step                 SequenceStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  userId               String
+  retellCallId         String   @unique
+  callStatus           String
+  duration             Int?
+  recordingUrl         String?
+  transcript           String?  @db.Text
+  disconnectionReason  String?
+  fromNumber           String?
+  toNumber             String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([stepId])
+  @@index([userId])
+  @@index([retellCallId])
+  @@map("call_logs")
+}
+
+model UserSettings {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // AI Configuration
+  aiProvider        String?  // "openai" | "gemini" | "claude"
+  aiApiKey          String?  // AES-256-GCM encrypted
+  aiModel           String?
+
+  // Fathom Integration
+  fathomApiKey      String?  // AES-256-GCM encrypted
+
+  // SMTP Configuration
+  smtpHost          String?
+  smtpPort          Int?
+  smtpUsername      String?
+  smtpPassword      String?  // AES-256-GCM encrypted
+  smtpFromName      String?
+
+  // SMS Configuration
+  smsProvider       String?  // "textmagic" | "twilio"
+
+  // TextMagic SMS
+  textmagicUsername String?
+  textmagicApiKey   String?  // AES-256-GCM encrypted
+
+  // Twilio (shared credentials)
+  twilioAccountSid      String?
+  twilioAuthToken       String?  // AES-256-GCM encrypted
+  twilioPhoneNumber     String?  // SMS only
+  twilioWhatsappNumber  String?  // WhatsApp only (sandbox or production)
+
+  // Retell AI (calling)
+  retellApiKey          String?  // AES-256-GCM encrypted
+  retellAgentId         String?
+  retellCallerNumber    String?  // E.164; Retell-purchased or Twilio SIP number (must exist in Retell). Falls back to twilioPhoneNumber if unset.
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("user_settings")
+}

@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "leads" ALTER COLUMN "email" DROP NOT NULL;
+ALTER TABLE "leads" ALTER COLUMN "phone" DROP NOT NULL;
+ALTER TABLE "leads" ADD COLUMN "notes" TEXT;
