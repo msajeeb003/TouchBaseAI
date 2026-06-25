@@ -1,10 +1,14 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" for local dev; the rhel targets are for Vercel's serverless runtime
+  // (AWS Lambda — openssl 1.0.x on Node 18, 3.0.x on Node 20+).
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -91,6 +95,14 @@ model Sequence {
   name             String
   totalSteps       Int
   status           String          @default("draft")
+  // Configurator inputs (from the "Create Follow-up Sequence" UI). Optional so
+  // legacy template-driven sequences keep working unchanged.
+  situation        String?         // e.g. "no-show", "post-call", "proposal"
+  goal             String?         // e.g. "book-call", "get-reply"
+  tone             String?         // e.g. "Friendly & Professional"
+  intensity        String?         // "Light" | "Standard" | "Aggressive"
+  channels         String[]        @default([]) // ordered step-type cycle: EMAIL/SMS/WHATSAPP/CALL
+  intervalDays     Int?            // days between steps (overrides AI-derived cadence)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   steps            SequenceStep[]

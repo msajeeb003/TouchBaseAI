@@ -9,6 +9,9 @@ import {
   BookOpen,
   Home,
   Settings,
+  Phone,
+  MessageSquare,
+  BarChart3,
 } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -42,9 +45,12 @@ import Logo from "@/components/logo/Logo";
 const navItems = [
   { title: "Dashboard", to: "/dashboard", icon: Home },
   { title: "Leads", to: "/dashboard/leads", icon: Users2 },
-  { title: "Sequences", to: "/dashboard/sequences", icon: Layers3 },
+  { title: "Sequences", to: "/create-sequence", icon: Layers3 },
+  { title: "Templates (Playbooks)", to: "/dashboard/templates", icon: Shapes },
+  { title: "Calls", to: "/dashboard/calls", icon: Phone },
+  { title: "Messages", to: "/dashboard/messages", icon: MessageSquare },
+  { title: "Analytics", to: "/dashboard/analytics", icon: BarChart3 },
   { title: "Transcripts", to: "/dashboard/transcripts", icon: FileText },
-  { title: "Templates", to: "/dashboard/templates", icon: Shapes },
   { title: "Settings", to: "/dashboard/settings", icon: Settings },
   { title: "How to configure", to: "/dashboard/how-to-configure", icon: BookOpen },
 ];
@@ -59,6 +65,9 @@ const breadcrumbLabelMap: Record<string, string> = {
   "sms-settings": "SMS settings",
   leads: "Leads",
   sequences: "Sequences",
+  calls: "Calls",
+  messages: "Messages",
+  analytics: "Analytics",
   transcripts: "Transcripts",
   templates: "Templates",
   settings: "Settings",

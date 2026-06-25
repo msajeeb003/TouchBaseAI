@@ -50,6 +50,12 @@ const createSequence = async (userId: string, payload: CreateSequenceInput) => {
       promptTemplateId,
       name: payload.name,
       totalSteps: payload.totalSteps,
+      situation: payload.situation ?? null,
+      goal: payload.goal ?? null,
+      tone: payload.tone ?? null,
+      intensity: payload.intensity ?? null,
+      channels: payload.channels ?? [],
+      intervalDays: payload.intervalDays ?? null,
     },
     include: {
       lead: { select: { name: true, email: true, followUpStage: true } },
@@ -532,10 +538,17 @@ const generateSteps = async (userId: string, sequenceId: string) => {
   if (sequence.status !== SEQUENCE_STATUS.DRAFT) {
     throw new AppError(400, "Steps can only be generated for draft sequences");
   }
-  if (!sequence.promptTemplate) {
+
+  // Configurator may supply channels/cadence directly (no template needed).
+  const configuredChannels = (sequence.channels ?? []).filter((c) =>
+    (STEP_TYPE_LIST as string[]).includes(c)
+  );
+  const hasConfiguredChannels = configuredChannels.length > 0;
+
+  if (!sequence.promptTemplate && !hasConfiguredChannels) {
     throw new AppError(
       400,
-      "No prompt template linked. Assign a prompt template first."
+      "No prompt template or channels configured. Assign a prompt template or pick channels first."
     );
   }
 
@@ -553,14 +566,28 @@ const generateSteps = async (userId: string, sequenceId: string) => {
     );
   }
 
-  // 3. Extract plan from AI (stepTypes + intervalDays)
-  const { stepTypes, intervalDays } = await extractPlanFromAI(
-    aiSettings.aiProvider,
-    aiApiKey,
-    aiSettings.aiModel,
-    sequence.promptTemplate.promptText,
-    sequence.totalSteps
-  );
+  // 3. Determine step types + interval days.
+  //    Prefer the configurator's explicit channels/cadence; otherwise extract a
+  //    plan from the prompt template via AI.
+  let stepTypes: string[];
+  let intervalDays: number;
+  if (hasConfiguredChannels) {
+    stepTypes = expandStepTypesToTotal(configuredChannels, sequence.totalSteps);
+    intervalDays =
+      sequence.intervalDays && sequence.intervalDays >= 1
+        ? sequence.intervalDays
+        : 2;
+  } else {
+    const plan = await extractPlanFromAI(
+      aiSettings.aiProvider,
+      aiApiKey,
+      aiSettings.aiModel,
+      sequence.promptTemplate!.promptText,
+      sequence.totalSteps
+    );
+    stepTypes = plan.stepTypes;
+    intervalDays = plan.intervalDays;
+  }
 
 
   // 4. Determine which steps are missing
@@ -646,7 +673,7 @@ const generateSteps = async (userId: string, sequenceId: string) => {
 
 
       const prompt = buildPrompt({
-        promptText: sequence.promptTemplate!.promptText,
+        promptText: sequence.promptTemplate?.promptText ?? "",
         sequenceName: sequence.name,
         stepContext: {
           stepOrder: step.stepOrder,
@@ -664,6 +691,12 @@ const generateSteps = async (userId: string, sequenceId: string) => {
           notes: sequence.lead.notes,
         },
         transcript: transcriptText,
+        strategy: {
+          situation: sequence.situation,
+          goal: sequence.goal,
+          tone: sequence.tone,
+          intensity: sequence.intensity,
+        },
       });
 
       const aiResponse = await generateContent(

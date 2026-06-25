@@ -2,20 +2,21 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import DashboardPage from "./pages/dashboardPages/DashboardPage";
 import LeadsPage from "./pages/dashboardPages/LeadsPage";
 import LeadTranscriptsPage from "./pages/dashboardPages/LeadTranscriptsPage";
-import SequencesPage from "./pages/dashboardPages/SequencesPage";
-import SequenceStepsPage from "./pages/dashboardPages/SequenceStepsPage";
 import TranscriptsPage from "./pages/dashboardPages/TranscriptsPage";
 import TemplatesPage from "./pages/dashboardPages/TemplatesPage";
 import CreateTemplatePage from "./pages/dashboardPages/CreateTemplatePage";
 import EditTemplatePage from "./pages/dashboardPages/EditTemplatePage";
 import SettingsPage from "./pages/dashboardPages/SettingsPage";
 import HowToConfigurePage from "./pages/dashboardPages/HowToConfigurePage";
+import CallsPage from "./pages/dashboardPages/CallsPage";
+import MessagesPage from "./pages/dashboardPages/MessagesPage";
+import AnalyticsPage from "./pages/dashboardPages/AnalyticsPage";
 import AiCredentialsDocsPage from "./pages/docsPages/AiCredentialsDocsPage";
 import DocsIndexPage from "./pages/docsPages/DocsIndexPage";
 import FathomTranscriptsDocsPage from "./pages/docsPages/FathomTranscriptsDocsPage";
@@ -24,6 +25,7 @@ import SmsSettingsDocsPage from "./pages/docsPages/SmsSettingsDocsPage";
 import RetellAiCallingDocsPage from "./pages/docsPages/RetellAiCallingDocsPage";
 import RequireAuth from "./routes/RequireAuth";
 import LandingPage from "./pages/LandingPage";
+import CreateFollowupSequencePage from "./pages/CreateFollowupSequencePage";
 import SignIn from "./pages/auth/SignIn";
 import Signup from "./pages/auth/Signup";
 import NotFound from "./pages/NotFound";
@@ -46,8 +48,11 @@ const App = () => (
                 <Route index element={<DashboardPage />} />
                 <Route path="leads" element={<LeadsPage />} />
                 <Route path="leads/:id/transcripts" element={<LeadTranscriptsPage />} />
-                <Route path="sequences" element={<SequencesPage />} />
-                <Route path="sequences/:id/steps" element={<SequenceStepsPage />} />
+                <Route path="sequences" element={<Navigate to="/create-sequence" replace />} />
+                <Route path="sequences/:id/steps" element={<Navigate to="/create-sequence" replace />} />
+                <Route path="calls" element={<CallsPage />} />
+                <Route path="messages" element={<MessagesPage />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="transcripts" element={<TranscriptsPage />} />
                 <Route path="templates" element={<TemplatesPage />} />
                 <Route path="templates/new" element={<CreateTemplatePage />} />
@@ -64,6 +69,7 @@ const App = () => (
             </Route>
           </Route>
           <Route path="/index" element={<Index />} />
+          <Route path="/create-sequence" element={<CreateFollowupSequencePage />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

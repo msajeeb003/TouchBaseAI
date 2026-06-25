@@ -48,14 +48,20 @@ export interface SequenceItem {
   id: string;
   userId: string;
   leadId: string;
-  promptTemplateId: string;
+  promptTemplateId: string | null;
   name: string;
   totalSteps: number;
   status: SequenceStatus;
+  situation?: string | null;
+  goal?: string | null;
+  tone?: string | null;
+  intensity?: string | null;
+  channels?: string[];
+  intervalDays?: number | null;
   createdAt: string;
   updatedAt: string;
   lead: SequenceLeadInfo;
-  promptTemplate: SequencePromptTemplateInfo;
+  promptTemplate: SequencePromptTemplateInfo | null;
   _count?: SequenceCountInfo;
 }
 
@@ -87,7 +93,14 @@ export interface CreateSequenceRequestBody {
   leadId: string;
   name: string;
   totalSteps: number;
-  promptTemplateId: string;
+  promptTemplateId?: string;
+  /** Configurator inputs from the "Create Follow-up Sequence" UI. */
+  situation?: string;
+  goal?: string;
+  tone?: string;
+  intensity?: string;
+  channels?: StepType[];
+  intervalDays?: number;
 }
 
 export interface CreateSequenceResponse {
@@ -107,10 +120,10 @@ export interface GetSingleSequenceResponse {
 }
 
 export interface UpdateSequenceRequestBody {
-  leadId: string;
-  name: string;
-  totalSteps: number;
-  promptTemplateId: string;
+  leadId?: string;
+  name?: string;
+  totalSteps?: number;
+  promptTemplateId?: string;
   status?: SequenceStatus;
 }
 

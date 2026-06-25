@@ -21,6 +21,13 @@ interface LeadInfo {
   notes?: string | null;
 }
 
+interface SequenceStrategy {
+  situation?: string | null;
+  goal?: string | null;
+  tone?: string | null;
+  intensity?: string | null;
+}
+
 interface BuildPromptParams {
   promptText: string;
   sequenceName?: string;
@@ -28,7 +35,22 @@ interface BuildPromptParams {
   previousSteps: PreviousStep[];
   lead: LeadInfo;
   transcript: string | null;
+  /** Optional configurator inputs from the "Create Follow-up Sequence" UI. */
+  strategy?: SequenceStrategy;
 }
+
+const formatStrategy = (strategy?: SequenceStrategy): string => {
+  if (!strategy) return "";
+  const lines: string[] = [];
+  if (strategy.situation) lines.push(`Situation: ${strategy.situation}`);
+  if (strategy.goal) lines.push(`Goal: ${strategy.goal}`);
+  if (strategy.tone) lines.push(`Tone of voice: ${strategy.tone}`);
+  if (strategy.intensity) lines.push(`Intensity: ${strategy.intensity}`);
+  if (lines.length === 0) return "";
+  return `\n\n--- STRATEGY ---\n${lines.join(
+    "\n"
+  )}\nWrite the message in the specified tone and intensity, tailored to the situation, and optimized to achieve the goal.`;
+};
 
 const resolveVariables = (text: string, lead: LeadInfo, sequenceName?: string): string => {
   return text
@@ -67,15 +89,22 @@ const formatPreviousSteps = (steps: PreviousStep[]): string => {
 };
 
 export const buildPrompt = (params: BuildPromptParams): string => {
-  const { promptText, sequenceName, stepContext, previousSteps, lead, transcript } = params;
+  const { promptText, sequenceName, stepContext, previousSteps, lead, transcript, strategy } =
+    params;
 
   const positionHint = getPositionHint(
     stepContext.stepOrder,
     stepContext.totalSteps
   );
 
-  // Replace {{variables}} in the promptText with actual lead/sequence data
-  let prompt = resolveVariables(promptText, lead, sequenceName);
+  // Replace {{variables}} in the promptText with actual lead/sequence data.
+  // When no template is linked (configurator-only flow), fall back to a base brief.
+  const baseText =
+    promptText.trim() ||
+    "You are an expert sales follow-up assistant. Write a personalized follow-up message to the lead below on behalf of the sender.";
+  let prompt = resolveVariables(baseText, lead, sequenceName);
+
+  prompt += formatStrategy(strategy);
 
   prompt += `\n\n--- STEP CONTEXT ---`;
   prompt += `\nStep: ${stepContext.stepOrder} of ${stepContext.totalSteps}`;
