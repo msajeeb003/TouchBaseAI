@@ -1,0 +1,17 @@
+# Caddy reverse proxy with automatic HTTPS.
+# DOMAIN comes from the .env file. Set it to your real domain (DNS A record ->
+# server IP) for a Let's Encrypt certificate. For IP-only testing, set DOMAIN=:80.
+
+{$DOMAIN:localhost} {
+	encode gzip
+
+	# API -> backend (path is preserved: /api/v1/... reaches Express unchanged)
+	handle /api/* {
+		reverse_proxy backend:5000
+	}
+
+	# Everything else -> frontend (static SPA)
+	handle {
+		reverse_proxy frontend:80
+	}
+}

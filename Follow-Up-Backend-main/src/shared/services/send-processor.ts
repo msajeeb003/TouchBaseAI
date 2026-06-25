@@ -159,7 +159,7 @@ const checkSequenceCompletion = async (sequenceId: string) => {
   }
 };
 
-export const processDueSteps = async () => {
+const processDueSteps = async () => {
   console.log("Time", new Date().toISOString());
   if (isProcessing) {
     return;
