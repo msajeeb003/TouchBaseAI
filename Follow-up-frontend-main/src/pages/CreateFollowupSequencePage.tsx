@@ -41,6 +41,7 @@ import type { SequenceStepItem } from "@/types/sequences";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useGetLeadsQuery, useUpdateLeadMutation } from "@/store/features/leads/leadsApi";
+import { useGetPromptTemplatesQuery } from "@/store/features/templates/templatesApi";
 import {
   useCreateSequenceMutation,
   useGenerateSequenceStepsMutation,
@@ -285,6 +286,11 @@ export default function CreateFollowupSequencePage() {
   const leads = useMemo(() => leadsData?.data?.items ?? [], [leadsData]);
   const selectedLead = leads.find((l) => l.id === selectedLeadId);
 
+  const { data: templatesData } = useGetPromptTemplatesQuery();
+  const templates = useMemo(() => templatesData?.data ?? [], [templatesData]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
+
   const [createSequence, { isLoading: isCreating }] = useCreateSequenceMutation();
   const [generateSteps, { isLoading: isGenerating }] = useGenerateSequenceStepsMutation();
   const [regenerateAll, { isLoading: isRegenerating }] = useRegenerateAllStepContentMutation();
@@ -341,6 +347,7 @@ export default function CreateFollowupSequencePage() {
         leadId: selectedLeadId,
         name: `${selectedLead?.name ?? "Lead"} — ${situationLabel}`,
         totalSteps,
+        promptTemplateId: selectedTemplateId || undefined,
         situation,
         goal,
         tone: tone.replace(/^\S+\s/, ""),
@@ -703,10 +710,49 @@ export default function CreateFollowupSequencePage() {
                 {/* Section 3 */}
                 <h2 className="mt-7 text-[15px] font-semibold text-gray-900">3. Preferences</h2>
                 <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_minmax(280px,0.9fr)]">
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <SelectField label="Tone of voice" value={tone} onChange={setTone} options={["🙂 Friendly & Professional", "😎 Casual", "🎯 Direct", "💜 Warm & Empathetic"]} />
-                    <SelectField label="Intensity" value={intensity} onChange={setIntensity} options={["Light", "Standard", "Aggressive"]} />
-                    <SelectField label="Cadence" value={cadence} onChange={setCadence} options={["3 steps over 5 days", "5 steps over 7 days", "7 steps over 14 days"]} />
+                  <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <SelectField label="Tone of voice" value={tone} onChange={setTone} options={["🙂 Friendly & Professional", "😎 Casual", "🎯 Direct", "💜 Warm & Empathetic"]} />
+                      <SelectField label="Intensity" value={intensity} onChange={setIntensity} options={["Light", "Standard", "Aggressive"]} />
+                      <SelectField label="Cadence" value={cadence} onChange={setCadence} options={["3 steps over 5 days", "5 steps over 7 days", "7 steps over 14 days"]} />
+                    </div>
+
+                    {/* Prompt template / playbook */}
+                    <div>
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <label className="text-sm font-medium text-gray-700">Prompt template</label>
+                        <button
+                          type="button"
+                          onClick={() => navigate("/dashboard/templates")}
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                        >
+                          Manage templates
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <select
+                          value={selectedTemplateId}
+                          onChange={(e) => setSelectedTemplateId(e.target.value)}
+                          className="w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2.5 pr-9 text-sm text-gray-700 outline-none transition-all duration-150 hover:border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                        >
+                          <option value="">Auto — based on the situation above</option>
+                          {templates.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}{t.followUpStage ? ` · ${t.followUpStage}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <BookOpen className="pointer-events-none absolute right-9 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-gray-300 sm:block" />
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                      </div>
+                      <p className="mt-1.5 text-xs text-gray-400">
+                        {selectedTemplate
+                          ? "The AI will follow this saved playbook (plus your situation & tone)."
+                          : templates.length === 0
+                            ? "No saved templates yet — the AI uses the situation above. Create one under Templates."
+                            : "Optional. Pick a saved playbook to steer the AI, or leave on Auto."}
+                      </p>
+                    </div>
                   </div>
 
                   <div>
@@ -934,6 +980,7 @@ export default function CreateFollowupSequencePage() {
                 <SummaryRow label="Tone" value={tone.replace(/^\S+\s/, "")} />
                 <SummaryRow label="Intensity" value={intensity} />
                 <SummaryRow label="Cadence" value={cadence} />
+                <SummaryRow label="Template" value={selectedTemplate?.name ?? "Auto (situation)"} />
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-gray-500">Channels</dt>
                   <dd className="flex items-center gap-1.5">
