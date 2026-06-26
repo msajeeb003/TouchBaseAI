@@ -330,6 +330,26 @@ export default function CreateFollowupSequencePage() {
 
   /* ----------------------------- Actions ----------------------------- */
 
+  // Surface per-step AI generation outcomes so failures (bad key, wrong
+  // provider, quota, model) aren't silently swallowed.
+  const reportGeneration = (
+    results: { status: string; error?: string }[],
+    successMsg: string
+  ) => {
+    const failed = results.filter(
+      (r) => r.status !== "generated" && r.status !== "skipped"
+    );
+    if (failed.length === 0) {
+      showSuccess(successMsg);
+      return;
+    }
+    const firstError = failed.find((r) => r.error)?.error;
+    showError(
+      `Steps created, but AI content didn't generate (${failed.length}/${results.length}). ` +
+        (firstError ?? "Check your AI provider, model and API key in Settings.")
+    );
+  };
+
   const runGenerate = async () => {
     if (!selectedLeadId) {
       showError("Select a lead first (add leads on the Leads page).");
@@ -359,7 +379,7 @@ export default function CreateFollowupSequencePage() {
       const gen = await generateSteps(created.data.id).unwrap();
       setSequenceId(created.data.id);
       setSteps(gen.data.sequence.steps.map(mapStep));
-      showSuccess("Sequence generated successfully.");
+      reportGeneration(gen.data.generationResults ?? [], "Sequence generated successfully.");
     } catch (err) {
       showError(apiError(err, "Failed to generate sequence. Check your AI settings and try again."));
     }
@@ -373,7 +393,7 @@ export default function CreateFollowupSequencePage() {
     try {
       const res = await regenerateAll(sequenceId).unwrap();
       setSteps(res.data.steps.map(mapStep));
-      showSuccess("Sequence content regenerated.");
+      reportGeneration(res.data.results ?? [], "Sequence content regenerated.");
     } catch (err) {
       showError(apiError(err, "Failed to regenerate content."));
     }

@@ -187,6 +187,7 @@ export interface GenerateSequenceStepContentResponse {
 export interface SequenceGenerationStepResult {
   stepOrder: number;
   status: string;
+  error?: string;
 }
 
 /** Shape returned by POST /sequences/:id/generate-steps (lead may omit optional list fields). */
@@ -208,6 +209,7 @@ export interface GenerateSequenceStepsResponse {
 export interface RegenerateAllStepContentResult {
   stepOrder: number;
   status: string;
+  error?: string;
 }
 
 /** POST /sequences/:id/steps/regenerate-all — refreshes AI content on existing steps only. */
