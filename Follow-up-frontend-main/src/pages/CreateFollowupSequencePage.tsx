@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Settings2,
   Send,
+  Pause,
   Calendar,
   CalendarX2,
   FileText,
@@ -52,6 +53,7 @@ import {
   useGenerateSequenceStepContentMutation,
   useUpdateSequenceStepMutation,
   useUpdateSequenceMutation,
+  useDeleteSequenceMutation,
 } from "@/store/features/sequences/sequencesApi";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { logout, useCurrentUser } from "@/store/features/auth/authSlice";
@@ -260,7 +262,7 @@ export default function CreateFollowupSequencePage() {
 
   const [steps, setSteps] = useState<DisplayStep[]>(SAMPLE_STEPS);
   const [sequenceId, setSequenceId] = useState<string | null>(null);
-  const [activated, setActivated] = useState(false);
+  const [seqStatus, setSeqStatus] = useState<"draft" | "active" | "paused">("draft");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
 
@@ -299,6 +301,7 @@ export default function CreateFollowupSequencePage() {
   const [reorderSteps] = useReorderSequenceStepsMutation();
   const [generateStepContent] = useGenerateSequenceStepContentMutation();
   const [updateSequence, { isLoading: isActivating }] = useUpdateSequenceMutation();
+  const [deleteSequenceMutation, { isLoading: isDeletingSeq }] = useDeleteSequenceMutation();
   const [updateStepMutation] = useUpdateSequenceStepMutation();
   const [updateLead, { isLoading: isSavingLead }] = useUpdateLeadMutation();
 
@@ -312,6 +315,7 @@ export default function CreateFollowupSequencePage() {
   const [savingStep, setSavingStep] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const busyGenerating = isCreating || isGenerating;
 
@@ -361,7 +365,7 @@ export default function CreateFollowupSequencePage() {
       return;
     }
     const { totalSteps, intervalDays } = parseCadence(cadence);
-    setActivated(false);
+    setSeqStatus("draft");
     try {
       const created = await createSequence({
         leadId: selectedLeadId,
@@ -406,10 +410,39 @@ export default function CreateFollowupSequencePage() {
     }
     try {
       await updateSequence({ id: sequenceId, body: { status: "active" } }).unwrap();
-      setActivated(true);
+      setSeqStatus("active");
       showSuccess("Sequence activated — it will now run automatically.");
     } catch (err) {
       showError(apiError(err, "Failed to activate sequence."));
+    }
+  };
+
+  const pauseSequence = async () => {
+    if (!sequenceId) return;
+    try {
+      await updateSequence({ id: sequenceId, body: { status: "paused" } }).unwrap();
+      setSeqStatus("paused");
+      showSuccess("Sequence paused — no further steps will send until you resume.");
+    } catch (err) {
+      showError(apiError(err, "Failed to pause sequence."));
+    }
+  };
+
+  const doDeleteSequence = async () => {
+    setConfirmDelete(false);
+    if (!sequenceId) return;
+    try {
+      // An active sequence can't be deleted directly — cancel it first.
+      if (seqStatus === "active") {
+        await updateSequence({ id: sequenceId, body: { status: "cancelled" } }).unwrap();
+      }
+      await deleteSequenceMutation(sequenceId).unwrap();
+      showSuccess("Sequence deleted.");
+      setSequenceId(null);
+      setSeqStatus("draft");
+      setSteps(SAMPLE_STEPS);
+    } catch (err) {
+      showError(apiError(err, "Failed to delete sequence."));
     }
   };
 
@@ -819,6 +852,12 @@ export default function CreateFollowupSequencePage() {
                 <div className="flex items-center gap-2.5">
                   <h2 className="text-[15px] font-semibold text-gray-900">Your Generated Sequence</h2>
                   <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">{steps.length} steps</span>
+                  {seqStatus === "active" && (
+                    <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">Active</span>
+                  )}
+                  {seqStatus === "paused" && (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">Paused</span>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button onClick={runRegenerate} className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition-all duration-150 hover:bg-gray-50 active:scale-95">
@@ -836,14 +875,35 @@ export default function CreateFollowupSequencePage() {
                     <Settings2 className="h-4 w-4" />
                     {advancedMode ? "Done" : "Advanced Edit"}
                   </button>
-                  <button
-                    onClick={activate}
-                    disabled={isActivating}
-                    className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-150 active:scale-95 disabled:opacity-80 ${activated ? "bg-green-600 hover:bg-green-700" : "bg-indigo-600 hover:bg-indigo-700 hover:shadow-md"}`}
-                  >
-                    {activated ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-                    {activated ? "Activated" : "Activate Sequence"}
-                  </button>
+                  {sequenceId && (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      disabled={isDeletingSeq}
+                      className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-all duration-150 hover:bg-red-50 active:scale-95 disabled:opacity-60"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  )}
+                  {seqStatus === "active" ? (
+                    <button
+                      onClick={pauseSequence}
+                      disabled={isActivating}
+                      className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-amber-600 active:scale-95 disabled:opacity-80"
+                    >
+                      <Pause className="h-4 w-4" />
+                      Pause
+                    </button>
+                  ) : (
+                    <button
+                      onClick={activate}
+                      disabled={isActivating}
+                      className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-indigo-700 hover:shadow-md active:scale-95 disabled:opacity-80"
+                    >
+                      <Send className="h-4 w-4" />
+                      {seqStatus === "paused" ? "Resume" : "Activate Sequence"}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1120,6 +1180,28 @@ export default function CreateFollowupSequencePage() {
             {previewStep.subject && <p className="text-sm font-semibold text-gray-900">Subject: {previewStep.subject}</p>}
             <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-600">{previewStep.preview}</p>
           </div>
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal
+          title="Delete sequence?"
+          onClose={() => setConfirmDelete(false)}
+          footer={
+            <>
+              <button onClick={() => setConfirmDelete(false)} className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100">
+                Cancel
+              </button>
+              <button onClick={doDeleteSequence} disabled={isDeletingSeq} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-70">
+                {isDeletingSeq ? "Deleting…" : "Delete sequence"}
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm text-gray-600">
+            This permanently removes the sequence and all its steps
+            {seqStatus === "active" ? " and stops it from sending" : ""}. This can't be undone.
+          </p>
         </Modal>
       )}
     </div>
