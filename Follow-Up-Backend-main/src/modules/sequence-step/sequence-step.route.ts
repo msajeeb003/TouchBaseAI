@@ -5,6 +5,7 @@ import { SequenceStepController } from "./sequence-step.controller";
 import {
   createStepSchema,
   updateStepSchema,
+  reorderStepsSchema,
 } from "./sequence-step.validation";
 
 const router = Router({ mergeParams: true });
@@ -22,6 +23,14 @@ router.post(
   "/regenerate-all",
   auth,
   SequenceStepController.regenerateAllStepsContent
+);
+
+// Must be registered before "/:stepId" so "reorder" isn't treated as a step id.
+router.patch(
+  "/reorder",
+  auth,
+  validateRequest(reorderStepsSchema),
+  SequenceStepController.reorderSteps
 );
 
 router.delete("/delete-all", auth, SequenceStepController.deleteAllSteps);

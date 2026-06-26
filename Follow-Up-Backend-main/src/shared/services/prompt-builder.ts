@@ -39,13 +39,54 @@ interface BuildPromptParams {
   strategy?: SequenceStrategy;
 }
 
+// Per-situation instructions the AI reads to tailor content. Keyed by the
+// configurator's situation id (No-show, Post-call follow-up, etc.).
+const SITUATION_GUIDANCE: Record<string, string> = {
+  "no-show":
+    "The lead booked a meeting but did not attend. Acknowledge it kindly and without guilt-tripping, assume good intent (things come up), and make rescheduling effortless — offer two specific time options.",
+  "post-call":
+    "You recently had a call or meeting with the lead. Reference that conversation naturally, recap the agreed next step, and keep momentum moving toward it.",
+  proposal:
+    "You sent the lead a proposal. Confirm they received it, invite questions, pre-empt likely objections, and create gentle urgency to reach a decision.",
+  "no-reply":
+    "The lead has gone quiet after previous outreach. Re-engage from a fresh angle or with new value, keep it short, and make replying effortless.",
+  "re-engage":
+    "The lead went cold a while ago. Reconnect warmly, remind them of the value you provide, and keep the ask low-pressure.",
+  custom:
+    "Follow the situation described by the user and craft an appropriate, genuinely helpful follow-up.",
+};
+
+// Per-goal instructions keyed by the configurator's goal id.
+const GOAL_GUIDANCE: Record<string, string> = {
+  "book-call":
+    "Goal: get a specific call booked. Propose concrete times and an easy way to confirm.",
+  "get-reply": "Goal: get any reply at all. Ask one simple, low-friction question.",
+  "close-proposal":
+    "Goal: move the proposal to a yes/no decision. Reinforce value and reduce perceived risk.",
+  qualify: "Goal: qualify the lead. Tactfully probe fit, timeline, and budget.",
+  other: "Goal: pursue the outcome the user set for this sequence.",
+};
+
+const describe = (
+  map: Record<string, string>,
+  key?: string | null
+): string | null => {
+  if (!key) return null;
+  return map[key] ?? key;
+};
+
 const formatStrategy = (strategy?: SequenceStrategy): string => {
   if (!strategy) return "";
   const lines: string[] = [];
-  if (strategy.situation) lines.push(`Situation: ${strategy.situation}`);
-  if (strategy.goal) lines.push(`Goal: ${strategy.goal}`);
+  const situation = describe(SITUATION_GUIDANCE, strategy.situation);
+  const goal = describe(GOAL_GUIDANCE, strategy.goal);
+  if (situation) lines.push(`Situation — ${situation}`);
+  if (goal) lines.push(goal);
   if (strategy.tone) lines.push(`Tone of voice: ${strategy.tone}`);
-  if (strategy.intensity) lines.push(`Intensity: ${strategy.intensity}`);
+  if (strategy.intensity)
+    lines.push(
+      `Intensity: ${strategy.intensity} (light = soft & patient, standard = balanced, aggressive = direct & urgent).`
+    );
   if (lines.length === 0) return "";
   return `\n\n--- STRATEGY ---\n${lines.join(
     "\n"

@@ -47,6 +47,8 @@ import {
   useRegenerateAllStepContentMutation,
   useCreateSequenceStepMutation,
   useDeleteSequenceStepMutation,
+  useReorderSequenceStepsMutation,
+  useGenerateSequenceStepContentMutation,
   useUpdateSequenceStepMutation,
   useUpdateSequenceMutation,
 } from "@/store/features/sequences/sequencesApi";
@@ -132,6 +134,14 @@ const STEPTYPE_TO_NAME: Record<string, keyof typeof CHANNEL_META> = {
   WHATSAPP: "WhatsApp",
   CALL: "AI Call",
 };
+const NAME_TO_STEPTYPE: Record<string, StepType> = {
+  Email: "EMAIL",
+  SMS: "SMS",
+  WhatsApp: "WHATSAPP",
+  "AI Call": "CALL",
+};
+/** Channels a user can add a step for, in the Add-Step menu. */
+const ADDABLE_CHANNELS: (keyof typeof CHANNEL_META)[] = ["SMS", "Email", "WhatsApp", "AI Call"];
 
 type DisplayStep = {
   key: string;
@@ -141,6 +151,8 @@ type DisplayStep = {
   subject?: string | null;
   preview: string;
   script?: boolean;
+  scheduledAt?: string; // raw ISO, for scheduling appended steps
+  status?: string;
 };
 
 /** Sample steps shown as a design preview before a real sequence is generated. */
@@ -185,8 +197,10 @@ function mapStep(s: SequenceStepItem): DisplayStep {
     channel,
     delay: delayLabel(s.scheduledAt),
     subject: s.subject,
-    preview: s.content?.trim() || (s.status === "pending" ? "Generating…" : "(no content yet)"),
+    preview: s.content?.trim() || (s.status === "pending" ? "Not generated yet — click Edit to write it" : "(no content yet)"),
     script: s.stepType === "CALL",
+    scheduledAt: s.scheduledAt,
+    status: s.status,
   };
 }
 
@@ -276,6 +290,8 @@ export default function CreateFollowupSequencePage() {
   const [regenerateAll, { isLoading: isRegenerating }] = useRegenerateAllStepContentMutation();
   const [createStep] = useCreateSequenceStepMutation();
   const [deleteStepMutation] = useDeleteSequenceStepMutation();
+  const [reorderSteps] = useReorderSequenceStepsMutation();
+  const [generateStepContent] = useGenerateSequenceStepContentMutation();
   const [updateSequence, { isLoading: isActivating }] = useUpdateSequenceMutation();
   const [updateStepMutation] = useUpdateSequenceStepMutation();
   const [updateLead, { isLoading: isSavingLead }] = useUpdateLeadMutation();
@@ -288,6 +304,8 @@ export default function CreateFollowupSequencePage() {
   const [previewStep, setPreviewStep] = useState<DisplayStep | null>(null);
   const [stepDraft, setStepDraft] = useState({ subject: "", content: "" });
   const [savingStep, setSavingStep] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const busyGenerating = isCreating || isGenerating;
 
@@ -368,26 +386,70 @@ export default function CreateFollowupSequencePage() {
     }
   };
 
-  const addStep = async () => {
+  const addStep = async (channel: keyof typeof CHANNEL_META) => {
+    setAddMenuOpen(false);
+    const { intervalDays } = parseCadence(cadence);
+
     if (!sequenceId) {
-      // Pre-generation: local-only placeholder so the design stays interactive.
+      // Pre-generation: local-only step of the chosen channel.
       setSteps((p) => [
         ...p,
-        { key: `local-${Date.now()}`, channel: "SMS", delay: `+${p.length + 2} days`, preview: "New follow-up message — generate the sequence to fill this in." },
+        {
+          key: `local-${Date.now()}`,
+          channel,
+          delay: `+${(p.length + 1) * intervalDays} days`,
+          preview: "New step — generate the sequence (or Edit) to add content.",
+          script: channel === "AI Call",
+        },
       ]);
       return;
     }
-    const { intervalDays } = parseCadence(cadence);
-    const scheduledAt = new Date(Date.now() + (steps.length + 1) * intervalDays * 86_400_000).toISOString();
+
+    // Schedule after the last step.
+    const lastIso = steps[steps.length - 1]?.scheduledAt;
+    const base = lastIso ? new Date(lastIso).getTime() : Date.now();
+    const scheduledAt = new Date(base + intervalDays * 86_400_000).toISOString();
     try {
       const res = await createStep({
         sequenceId,
-        body: { stepOrder: steps.length + 1, stepType: "SMS", scheduledAt },
+        body: { stepOrder: steps.length + 1, stepType: NAME_TO_STEPTYPE[channel], scheduledAt },
       }).unwrap();
       setSteps((p) => [...p, mapStep(res.data)]);
-      showSuccess("Step added.");
+      showSuccess(`${channel} step added.`);
+      // Best-effort: generate AI content for the new step.
+      try {
+        const gen = await generateStepContent({ sequenceId, stepId: res.data.id }).unwrap();
+        setSteps((p) => p.map((s) => (s.key === res.data.id ? mapStep(gen.data) : s)));
+      } catch {
+        /* no AI key / generation failed — step stays editable */
+      }
     } catch (err) {
       showError(apiError(err, "Failed to add step."));
+    }
+  };
+
+  // Drag-to-reorder
+  const onDrop = async (toIndex: number) => {
+    const from = dragIndex;
+    setDragIndex(null);
+    if (from === null || from === toIndex) return;
+
+    const reordered = [...steps];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(toIndex, 0, moved);
+    setSteps(reordered); // optimistic
+
+    if (sequenceId && reordered.every((s) => s.stepId)) {
+      try {
+        const res = await reorderSteps({
+          sequenceId,
+          orderedStepIds: reordered.map((s) => s.stepId!),
+        }).unwrap();
+        setSteps(res.data.map(mapStep));
+        showSuccess("Steps reordered.");
+      } catch (err) {
+        showError(apiError(err, "Failed to reorder steps."));
+      }
     }
   };
 
@@ -492,7 +554,7 @@ export default function CreateFollowupSequencePage() {
     <div
       className="flex min-h-screen bg-[#fafafb] text-gray-900 antialiased"
       style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" }}
-      onClick={() => openMenu !== null && setOpenMenu(null)}
+      onClick={() => { if (openMenu !== null) setOpenMenu(null); if (addMenuOpen) setAddMenuOpen(false); }}
     >
       {/* ============================== LEFT SIDEBAR ============================== */}
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
@@ -720,12 +782,22 @@ export default function CreateFollowupSequencePage() {
               </div>
 
               <div className="space-y-2.5">
-                {steps.map((step) => {
+                {steps.map((step, index) => {
                   const meta = CHANNEL_META[step.channel];
                   const Icon = meta.icon;
                   return (
-                    <div key={step.key} className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-sm">
-                      <button className="cursor-grab text-gray-300 transition hover:text-gray-500 active:cursor-grabbing">
+                    <div
+                      key={step.key}
+                      draggable
+                      onDragStart={() => setDragIndex(index)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => onDrop(index)}
+                      onDragEnd={() => setDragIndex(null)}
+                      className={`group flex items-center gap-3 rounded-xl border bg-white p-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-sm ${
+                        dragIndex === index ? "border-indigo-300 opacity-50" : "border-gray-200"
+                      }`}
+                    >
+                      <button className="cursor-grab text-gray-300 transition hover:text-gray-500 active:cursor-grabbing" title="Drag to reorder">
                         <GripVertical className="h-5 w-5" />
                       </button>
                       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${meta.chip}`}>
@@ -784,10 +856,36 @@ export default function CreateFollowupSequencePage() {
                 })}
               </div>
 
-              <button onClick={addStep} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 py-3 text-sm font-medium text-gray-500 transition-all duration-150 hover:border-indigo-400 hover:bg-indigo-50/50 hover:text-indigo-600 active:scale-[0.99]">
-                <Plus className="h-4 w-4" />
-                Add Step
-              </button>
+              <div className="relative mt-3">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setAddMenuOpen((v) => !v); }}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 py-3 text-sm font-medium text-gray-500 transition-all duration-150 hover:border-indigo-400 hover:bg-indigo-50/50 hover:text-indigo-600 active:scale-[0.99]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Step
+                </button>
+                {addMenuOpen && (
+                  <div className="absolute bottom-14 left-1/2 z-20 w-56 -translate-x-1/2 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                    <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Choose a channel</p>
+                    {ADDABLE_CHANNELS.map((ch) => {
+                      const m = CHANNEL_META[ch];
+                      const I = m.icon;
+                      return (
+                        <button
+                          key={ch}
+                          onClick={(e) => { e.stopPropagation(); addStep(ch); }}
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50"
+                        >
+                          <span className={`flex h-6 w-6 items-center justify-center rounded-md ${m.chip}`}>
+                            <I className="h-3.5 w-3.5" />
+                          </span>
+                          {m.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </Card>
           </div>
 

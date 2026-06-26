@@ -552,14 +552,19 @@ const generateSteps = async (userId: string, sequenceId: string) => {
     );
   }
 
-  // 2. Check AI settings upfront
+  // 2. Load AI settings. AI is OPTIONAL when channels are configured: the step
+  //    structure (types + schedule) is built from the configurator, and content
+  //    is generated best-effort. Steps without content stay "pending" so the
+  //    user can write them manually before activating.
   const aiSettings = await prisma.userSettings.findUnique({
     where: { userId },
     select: { aiProvider: true, aiModel: true },
   });
   const aiApiKey = await SettingsService.getDecryptedField(userId, "aiApiKey");
+  const aiConfigured = !!(aiSettings?.aiProvider && aiApiKey);
 
-  if (!aiSettings?.aiProvider || !aiApiKey) {
+  // Template-only flow (no channels) needs AI to derive the channel plan.
+  if (!aiConfigured && !hasConfiguredChannels) {
     throw new AppError(
       400,
       "AI provider and API key not configured. Please set them in Settings."
@@ -579,9 +584,9 @@ const generateSteps = async (userId: string, sequenceId: string) => {
         : 2;
   } else {
     const plan = await extractPlanFromAI(
-      aiSettings.aiProvider,
-      aiApiKey,
-      aiSettings.aiModel,
+      aiSettings!.aiProvider!,
+      aiApiKey!,
+      aiSettings!.aiModel,
       sequence.promptTemplate!.promptText,
       sequence.totalSteps
     );
@@ -648,6 +653,17 @@ const generateSteps = async (userId: string, sequenceId: string) => {
       continue;
     }
 
+    if (!aiConfigured) {
+      // Structure created, but no AI to write content. Leave the step pending so
+      // the user can fill it in manually (Edit) before activating.
+      results.push({
+        stepOrder: step.stepOrder,
+        status: SEQUENCE_STEP_STATUS.PENDING,
+        error: "AI not configured — add an AI key in Settings or edit the step manually.",
+      });
+      continue;
+    }
+
     try {
       const previousSteps = await prisma.sequenceStep.findMany({
         where: {
@@ -701,9 +717,9 @@ const generateSteps = async (userId: string, sequenceId: string) => {
 
       const aiResponse = await generateContent(
         {
-          provider: aiSettings.aiProvider as AIProvider,
-          apiKey: aiApiKey,
-          model: aiSettings.aiModel || undefined,
+          provider: aiSettings!.aiProvider as AIProvider,
+          apiKey: aiApiKey!,
+          model: aiSettings!.aiModel || undefined,
         },
         prompt
       );

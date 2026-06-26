@@ -89,6 +89,23 @@ const deleteStep = catchAsync(
   }
 );
 
+const reorderSteps = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const result = await SequenceStepService.reorderSteps(
+      req.user!.id,
+      req.params.sequenceId as string,
+      req.body.orderedStepIds as string[]
+    );
+
+    sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Steps reordered successfully",
+      data: result,
+    });
+  }
+);
+
 const deleteAllSteps = catchAsync(
   async (req: AuthRequest, res: Response) => {
     const result = await SequenceStepService.deleteAllSteps(
@@ -144,6 +161,7 @@ export const SequenceStepController = {
   getStepById,
   updateStep,
   deleteStep,
+  reorderSteps,
   deleteAllSteps,
   generateStepContent,
   regenerateAllStepsContent,

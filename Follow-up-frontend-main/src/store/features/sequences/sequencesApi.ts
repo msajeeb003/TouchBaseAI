@@ -63,6 +63,17 @@ export const sequencesApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Sequences"],
     }),
+    reorderSequenceSteps: builder.mutation<
+      GetSequenceStepsResponse,
+      { sequenceId: string; orderedStepIds: string[] }
+    >({
+      query: ({ sequenceId, orderedStepIds }) => ({
+        url: `/sequences/${sequenceId}/steps/reorder`,
+        method: "PATCH",
+        body: { orderedStepIds },
+      }),
+      invalidatesTags: ["Sequences"],
+    }),
     deleteAllSequenceSteps: builder.mutation<DeleteAllSequenceStepsResponse, string>({
       query: (sequenceId) => ({
         url: `/sequences/${sequenceId}/steps/delete-all`,
@@ -144,6 +155,7 @@ export const {
   useCreateSequenceStepMutation,
   useDeleteAllSequenceStepsMutation,
   useDeleteSequenceStepMutation,
+  useReorderSequenceStepsMutation,
   useGenerateSequenceStepContentMutation,
   useGenerateSequenceStepsMutation,
   useRegenerateAllStepContentMutation,

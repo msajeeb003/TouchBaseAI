@@ -33,60 +33,41 @@ const createStep = async (
     throw new AppError(400, "Steps can only be added to draft sequences");
   }
 
-  if (payload.stepOrder > sequence.totalSteps) {
-    throw new AppError(
-      400,
-      `Step order cannot exceed total steps (${sequence.totalSteps})`
-    );
-  }
+  // Always append to the end and grow the sequence. Keeping totalSteps in sync
+  // with the real step count is what lets the sequence be activated later.
+  const stepCount = await prisma.sequenceStep.count({ where: { sequenceId } });
+  const newOrder = stepCount + 1;
 
-  const stepCount = await prisma.sequenceStep.count({
+  const lastStep = await prisma.sequenceStep.findFirst({
     where: { sequenceId },
+    orderBy: { stepOrder: "desc" },
   });
 
-  if (stepCount >= sequence.totalSteps) {
-    throw new AppError(
-      400,
-      `Sequence already has all ${sequence.totalSteps} steps`
-    );
+  // Schedule after the last step (or honor the client's date if it's later/future).
+  let scheduledDate = new Date(payload.scheduledAt);
+  const minDate = lastStep
+    ? new Date(lastStep.scheduledAt.getTime() + 24 * 60 * 60 * 1000)
+    : new Date(Date.now() + 6 * 60 * 60 * 1000);
+  if (scheduledDate <= minDate) {
+    scheduledDate = minDate;
   }
 
-  const scheduledDate = new Date(payload.scheduledAt);
-  if (scheduledDate <= new Date()) {
-    throw new AppError(400, "Scheduled date must be in the future");
-  }
-
-  if (payload.stepOrder > 1) {
-    const previousStep = await prisma.sequenceStep.findFirst({
-      where: { sequenceId, stepOrder: payload.stepOrder - 1 },
+  return prisma.$transaction(async (tx) => {
+    const step = await tx.sequenceStep.create({
+      data: {
+        sequenceId,
+        stepOrder: newOrder,
+        stepType: payload.stepType,
+        scheduledAt: scheduledDate,
+      },
     });
 
-    if (previousStep && scheduledDate <= previousStep.scheduledAt) {
-      throw new AppError(
-        400,
-        `Scheduled date must be after step ${payload.stepOrder - 1}`
-      );
-    }
-  }
+    await tx.sequence.update({
+      where: { id: sequenceId },
+      data: { totalSteps: { increment: 1 } },
+    });
 
-  const nextStep = await prisma.sequenceStep.findFirst({
-    where: { sequenceId, stepOrder: payload.stepOrder + 1 },
-  });
-
-  if (nextStep && scheduledDate >= nextStep.scheduledAt) {
-    throw new AppError(
-      400,
-      `Scheduled date must be before step ${payload.stepOrder + 1}`
-    );
-  }
-
-  return prisma.sequenceStep.create({
-    data: {
-      sequenceId,
-      stepOrder: payload.stepOrder,
-      stepType: payload.stepType,
-      scheduledAt: scheduledDate,
-    },
+    return step;
   });
 };
 
@@ -223,9 +204,71 @@ const deleteStep = async (
         stepOrder: { decrement: 1 },
       },
     });
+
+    // Keep totalSteps in sync with the real step count.
+    await tx.sequence.update({
+      where: { id: sequenceId },
+      data: { totalSteps: { decrement: 1 } },
+    });
   });
 
   return null;
+};
+
+const reorderSteps = async (
+  userId: string,
+  sequenceId: string,
+  orderedStepIds: string[]
+) => {
+  const sequence = await verifySequenceOwnership(userId, sequenceId);
+
+  if (sequence.status !== "draft") {
+    throw new AppError(400, "Steps can only be reordered in draft sequences");
+  }
+
+  const steps = await prisma.sequenceStep.findMany({
+    where: { sequenceId },
+    orderBy: { stepOrder: "asc" },
+  });
+
+  const sameSet =
+    orderedStepIds.length === steps.length &&
+    orderedStepIds.every((id) => steps.some((s) => s.id === id));
+
+  if (!sameSet) {
+    throw new AppError(
+      400,
+      "orderedStepIds must contain exactly the sequence's current step ids"
+    );
+  }
+
+  // Preserve the existing ascending schedule "slots"; just reassign which step
+  // occupies each slot so the cadence and ordering stay valid.
+  const dates = steps
+    .map((s) => s.scheduledAt)
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  await prisma.$transaction(async (tx) => {
+    // Pass 1: park at negative orders to avoid unique [sequenceId, stepOrder] clashes.
+    for (let i = 0; i < orderedStepIds.length; i++) {
+      await tx.sequenceStep.update({
+        where: { id: orderedStepIds[i] },
+        data: { stepOrder: -(i + 1) },
+      });
+    }
+    // Pass 2: assign final order + reassigned schedule.
+    for (let i = 0; i < orderedStepIds.length; i++) {
+      await tx.sequenceStep.update({
+        where: { id: orderedStepIds[i] },
+        data: { stepOrder: i + 1, scheduledAt: dates[i] },
+      });
+    }
+  });
+
+  return prisma.sequenceStep.findMany({
+    where: { sequenceId },
+    orderBy: { stepOrder: "asc" },
+  });
 };
 
 const deleteAllSteps = async (userId: string, sequenceId: string) => {
@@ -266,12 +309,8 @@ const generateStepContent = async (
     throw new AppError(400, "Content can only be generated for draft sequences");
   }
 
-  if (!sequence.promptTemplate) {
-    throw new AppError(
-      400,
-      "No prompt template linked. Assign a prompt template to this sequence first."
-    );
-  }
+  // Configurator sequences have no template — content is driven by the
+  // situation/goal/tone strategy instead. Either is acceptable.
 
   // STEP 2: Verify step exists
   const step = await prisma.sequenceStep.findFirst({
@@ -349,7 +388,7 @@ const generateStepContent = async (
       : null;
   // STEP 7: Build prompt
   const prompt = buildPrompt({
-    promptText: sequence.promptTemplate.promptText,
+    promptText: sequence.promptTemplate?.promptText ?? "",
     sequenceName: sequence.name,
     stepContext: {
       stepOrder: step.stepOrder,
@@ -367,6 +406,12 @@ const generateStepContent = async (
       notes: sequence.lead.notes,
     },
     transcript: transcriptText,
+    strategy: {
+      situation: sequence.situation,
+      goal: sequence.goal,
+      tone: sequence.tone,
+      intensity: sequence.intensity,
+    },
   });
 
   // STEP 8: Generate content
@@ -439,6 +484,7 @@ export const SequenceStepService = {
   getStepById,
   updateStep,
   deleteStep,
+  reorderSteps,
   deleteAllSteps,
   generateStepContent,
   regenerateAllStepsContent,

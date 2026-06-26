@@ -31,5 +31,14 @@ export const updateStepSchema = z.object({
   }),
 });
 
+export const reorderStepsSchema = z.object({
+  body: z.object({
+    orderedStepIds: z
+      .array(z.string().uuid("Invalid step id"))
+      .min(1, "orderedStepIds cannot be empty"),
+  }),
+});
+
 export type CreateStepInput = z.infer<typeof createStepSchema>["body"];
 export type UpdateStepInput = z.infer<typeof updateStepSchema>["body"];
+export type ReorderStepsInput = z.infer<typeof reorderStepsSchema>["body"];
