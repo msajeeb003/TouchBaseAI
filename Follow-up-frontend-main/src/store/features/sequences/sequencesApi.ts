@@ -97,7 +97,7 @@ export const sequencesApi = baseApi.injectEndpoints({
         method: "POST",
         body: {},
       }),
-      invalidatesTags: ["Sequences"],
+      invalidatesTags: ["Sequences", "Dashboard"],
     }),
     regenerateAllStepContent: builder.mutation<RegenerateAllStepContentResponse, string>({
       query: (sequenceId) => ({
@@ -124,7 +124,7 @@ export const sequencesApi = baseApi.injectEndpoints({
         method: "POST",
         body,
       }),
-      invalidatesTags: ["Sequences"],
+      invalidatesTags: ["Sequences", "Dashboard"],
     }),
     updateSequence: builder.mutation<
       UpdateSequenceResponse,
@@ -135,14 +135,14 @@ export const sequencesApi = baseApi.injectEndpoints({
         method: "PATCH",
         body,
       }),
-      invalidatesTags: ["Sequences"],
+      invalidatesTags: ["Sequences", "Dashboard"],
     }),
     deleteSequence: builder.mutation<DeleteSequenceResponse, string>({
       query: (id) => ({
         url: `/sequences/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Sequences"],
+      invalidatesTags: ["Sequences", "Dashboard"],
     }),
   }),
   overrideExisting: false,
