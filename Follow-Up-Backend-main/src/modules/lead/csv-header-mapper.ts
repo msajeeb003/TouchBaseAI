@@ -43,6 +43,94 @@ const normalizeHeaderKey = (header: string): string =>
 const isIgnoredHeader = (header: string): boolean =>
   IGNORED_HEADER_KEYS.has(normalizeHeaderKey(header));
 
+/* -------------------------------------------------------------------------- */
+/*  Deterministic header mapping (runs first, no AI required)                  */
+/* -------------------------------------------------------------------------- */
+
+const FIELD_SYNONYMS: Record<LeadCsvField, string[]> = {
+  name: ["name", "full name", "fullname", "lead name", "contact name", "contact", "person", "client name", "customer name", "first name"],
+  email: ["email", "e mail", "email address", "mail", "contact email", "work email", "email id", "e mail address"],
+  phone: ["phone", "phone number", "phone no", "mobile", "mobile number", "mobile no", "cell", "cell phone", "contact number", "tel", "telephone", "whatsapp", "whatsapp number"],
+  company: ["company", "company name", "organization", "organisation", "business", "business name", "org", "employer"],
+  location: ["location", "city", "country", "address", "region", "state"],
+  notes: ["notes", "note", "comments", "comment", "remarks", "description"],
+  status: ["status", "lead status"],
+  followUpStage: ["follow up stage", "followup stage", "stage", "pipeline", "pipeline stage", "follow up", "followup"],
+};
+
+/** Fuzzy keyword fallbacks. Order matters (company before name avoids
+ *  "Company Name" -> name). */
+const FUZZY_RULES: [LeadCsvField, RegExp][] = [
+  ["email", /\be[\s-]?mail\b/],
+  ["phone", /\b(phone|mobile|whatsapp|telephone|cell)\b/],
+  ["company", /\b(company|organi[sz]ation|business|employer)\b/],
+  ["name", /\bname\b/],
+  ["location", /\b(location|city|country|address|region|state)\b/],
+  ["followUpStage", /\b(stage|pipeline)\b/],
+  ["status", /\bstatus\b/],
+  ["notes", /\b(note|comment|remark|description)\b/],
+];
+
+const normHeader = (h: string): string =>
+  h.trim().toLowerCase().replace(/[_\-.]+/g, " ").replace(/\s+/g, " ");
+
+/** Map CSV headers to lead fields by recognising common column names. */
+const deterministicMapping = (headers: string[]): LeadCsvColumnMapping => {
+  const result: LeadCsvColumnMapping = {};
+  const usedFields = new Set<LeadCsvField>();
+
+  // Pass 1: exact synonym match.
+  for (const header of headers) {
+    if (isIgnoredHeader(header) || result[header]) continue;
+    const n = normHeader(header);
+    for (const field of LEAD_CSV_FIELDS) {
+      if (usedFields.has(field)) continue;
+      if (FIELD_SYNONYMS[field].includes(n)) {
+        result[header] = field;
+        usedFields.add(field);
+        break;
+      }
+    }
+  }
+
+  // Pass 2: fuzzy keyword match for fields still unmapped.
+  for (const [field, re] of FUZZY_RULES) {
+    if (usedFields.has(field)) continue;
+    for (const header of headers) {
+      if (result[header] || isIgnoredHeader(header)) continue;
+      if (re.test(normHeader(header))) {
+        result[header] = field;
+        usedFields.add(field);
+        break;
+      }
+    }
+  }
+
+  return result;
+};
+
+/** Add mappings from `secondary` for columns/fields not already covered. */
+const mergeMappings = (
+  primary: LeadCsvColumnMapping,
+  secondary: LeadCsvColumnMapping,
+  headers: string[]
+): LeadCsvColumnMapping => {
+  const result: LeadCsvColumnMapping = { ...primary };
+  const usedFields = new Set<LeadCsvField>(Object.values(primary));
+  const usedHeaders = new Set<string>(Object.keys(primary));
+
+  for (const header of headers) {
+    if (usedHeaders.has(header) || isIgnoredHeader(header)) continue;
+    const field = secondary[header];
+    if (!field || usedFields.has(field)) continue;
+    result[header] = field;
+    usedFields.add(field);
+    usedHeaders.add(header);
+  }
+
+  return result;
+};
+
 const extractJsonPayload = (text: string): unknown => {
   const trimmed = text.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/i);
@@ -83,7 +171,8 @@ ${samplesJson}`;
 
 const sanitizeMapping = (
   raw: Record<string, LeadCsvField>,
-  headers: string[]
+  headers: string[],
+  requireName = true
 ): LeadCsvColumnMapping => {
   const usedFields = new Set<LeadCsvField>();
   const result: LeadCsvColumnMapping = {};
@@ -117,7 +206,7 @@ const sanitizeMapping = (
     }
   }
 
-  if (!Object.values(result).includes("name")) {
+  if (requireName && !Object.values(result).includes("name")) {
     throw new AppError(
       400,
       "Could not map a CSV column to lead name. Ensure your file has a name column."
@@ -179,7 +268,7 @@ const requestMappingFromAi = async (
 
   try {
     const raw = await run();
-    return sanitizeMapping(raw, headers);
+    return sanitizeMapping(raw, headers, false);
   } catch (firstError) {
     if (firstError instanceof AppError && firstError.statusCode !== 502) {
       throw firstError;
@@ -189,7 +278,7 @@ const requestMappingFromAi = async (
       const raw = await run(
         "Your previous response was invalid. Reply with JSON only: { \"mapping\": { ... } }"
       );
-      return sanitizeMapping(raw, headers);
+      return sanitizeMapping(raw, headers, false);
     } catch {
       if (firstError instanceof AppError) throw firstError;
       throw new AppError(502, "Failed to map CSV columns using AI");
@@ -230,15 +319,53 @@ export const resolveLeadCsvColumnMapping = async (
     );
   }
 
-  const sampleRows = records
-    .slice(0, MAX_SAMPLE_ROWS)
-    .map((row) => {
+  // 1) Deterministic synonym mapping — reliable and needs no AI key.
+  const deterministic = deterministicMapping(headers);
+  let detFields = new Set(Object.values(deterministic));
+  const hasContact = detFields.has("email") || detFields.has("phone");
+
+  // Name fallback: if we have a contact channel but no recognised name column,
+  // use the first unmapped column (lead CSVs almost always lead with the name).
+  if (!detFields.has("name") && hasContact) {
+    const usedHeaders = new Set(Object.keys(deterministic));
+    const candidate = headers.find(
+      (h) => !usedHeaders.has(h) && !isIgnoredHeader(h)
+    );
+    if (candidate) {
+      deterministic[candidate] = "name";
+      detFields = new Set(Object.values(deterministic));
+    }
+  }
+
+  // Good enough on its own when we have a name + at least one contact channel.
+  if (detFields.has("name") && hasContact) {
+    return deterministic;
+  }
+
+  // 2) Try AI to fill the gaps (e.g. an unusual name column). Never fail just
+  //    because AI isn't configured — fall back to the deterministic mapping.
+  let aiMapping: LeadCsvColumnMapping | null = null;
+  try {
+    const sampleRows = records.slice(0, MAX_SAMPLE_ROWS).map((row) => {
       const sample: Record<string, string> = {};
-      for (const h of headers) {
-        sample[h] = row[h] ?? "";
-      }
+      for (const h of headers) sample[h] = row[h] ?? "";
       return sample;
     });
+    aiMapping = await requestMappingFromAi(headers, sampleRows, userId);
+  } catch {
+    aiMapping = null;
+  }
 
-  return requestMappingFromAi(headers, sampleRows, userId);
+  const merged = aiMapping
+    ? mergeMappings(deterministic, aiMapping, headers)
+    : deterministic;
+
+  if (!Object.values(merged).includes("name")) {
+    throw new AppError(
+      400,
+      "Could not find a name column. Make sure the first row of your CSV has column headers (e.g. Name, Email, Phone)."
+    );
+  }
+
+  return merged;
 };
