@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Bot, BarChart3, Mail, MessageSquare, PhoneCall } from "lucide-react";
+import { Bot, BarChart3, Mail, MessageSquare, PhoneCall, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -170,9 +170,75 @@ const sanitizeUpdatePayload = (
   return payload;
 };
 
+function SettingsSection({
+  icon,
+  title,
+  description,
+  docHref,
+  docLabel,
+  configured,
+  open,
+  onToggle,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  docHref?: string;
+  docLabel?: string;
+  configured?: boolean;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className={sectionCardClass}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50/70 px-4 py-3">
+        <button type="button" onClick={onToggle} className="flex flex-1 items-start gap-2 text-left">
+          <ChevronDown
+            className={`mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          />
+          {icon}
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-slate-900">{title}</h3>
+              {configured && (
+                <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700">
+                  Configured
+                </span>
+              )}
+            </div>
+            {open && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+          </div>
+        </button>
+        {docHref && open && (
+          <Link
+            to={docHref}
+            className="shrink-0 text-sm font-medium text-indigo-600 underline-offset-2 hover:text-indigo-700 hover:underline"
+          >
+            {docLabel}
+          </Link>
+        )}
+      </div>
+      <div className={open ? "" : "hidden"}>{children}</div>
+    </section>
+  );
+}
+
 export default function SettingsPage() {
   const { data, isLoading, isError } = useGetSettingsQuery();
   const [updateSettings, { isLoading: isSaving }] = useUpdateSettingsMutation();
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const toggleSection = (id: string) =>
+    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  const s = data?.data;
+  const configured = {
+    ai: !!(s?.aiProvider || s?.aiApiKey),
+    fathom: !!s?.fathomApiKey,
+    retell: !!(s?.retellApiKey || s?.retellAgentId),
+    smtp: !!(s?.smtpHost || s?.smtpUsername),
+    sms: !!s?.smsProvider,
+  };
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsFormSchema),
@@ -249,25 +315,16 @@ export default function SettingsPage() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
-          <section className={sectionCardClass}>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50/70 px-4 py-3">
-              <div className="flex items-start gap-2">
-                <Bot className="mt-0.5 h-4 w-4 text-indigo-600" />
-                <div>
-                  <h3 className="font-medium text-slate-900">AI Configuration</h3>
-                  <p className="text-xs text-slate-500">Configure your AI assistant settings and models.</p>
-                </div>
-              </div>
-              <Link
-                to="/docs/ai-credentials"
-                className="shrink-0 text-sm font-medium text-indigo-600 underline-offset-2 hover:text-indigo-700 hover:underline"
-              >
-                Credential help and official docs
-              </Link>
-              {/* <Button type="button" variant="outline" size="sm" onClick={() => handleTestConnection("AI")}>
-                Test Connection
-              </Button> */}
-            </div>
+          <SettingsSection
+            icon={<Bot className="mt-0.5 h-4 w-4 text-indigo-600" />}
+            title="AI Configuration"
+            description="Configure your AI assistant settings and models."
+            docHref="/docs/ai-credentials"
+            docLabel="Credential help and official docs"
+            configured={configured.ai}
+            open={!!openSections.ai}
+            onToggle={() => toggleSection("ai")}
+          >
             <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
               <FormField
                 control={form.control}
@@ -325,26 +382,18 @@ export default function SettingsPage() {
                 )}
               />
             </div>
-          </section>
+          </SettingsSection>
 
-          <section className={sectionCardClass}>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50/70 px-4 py-3">
-              <div className="flex items-start gap-2">
-                <BarChart3 className="mt-0.5 h-4 w-4 text-emerald-600" />
-                <div>
-                  <h3 className="font-medium text-slate-900">Fathom Call Transcripts</h3>
-                  <p className="text-xs text-slate-500">
-                    Connect your Fathom analytics account to import call transcripts.
-                  </p>
-                </div>
-              </div>
-              <Link
-                to="/docs/fathom-transcripts"
-                className="shrink-0 text-sm font-medium text-indigo-600 underline-offset-2 hover:text-indigo-700 hover:underline"
-              >
-                Fathom help and official docs
-              </Link>
-            </div>
+          <SettingsSection
+            icon={<BarChart3 className="mt-0.5 h-4 w-4 text-emerald-600" />}
+            title="Fathom Call Transcripts"
+            description="Connect your Fathom analytics account to import call transcripts."
+            docHref="/docs/fathom-transcripts"
+            docLabel="Fathom help and official docs"
+            configured={configured.fathom}
+            open={!!openSections.fathom}
+            onToggle={() => toggleSection("fathom")}
+          >
             <div className="p-4">
               <FormField
                 control={form.control}
@@ -360,26 +409,18 @@ export default function SettingsPage() {
                 )}
               />
             </div>
-          </section>
+          </SettingsSection>
 
-          <section className={sectionCardClass}>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50/70 px-4 py-3">
-              <div className="flex items-start gap-2">
-                <PhoneCall className="mt-0.5 h-4 w-4 text-sky-600" />
-                <div>
-                  <h3 className="font-medium text-slate-900">AI Calling (Retell)</h3>
-                  <p className="text-xs text-slate-500">
-                    Connect Retell to run outbound AI voice calls from your sequences.
-                  </p>
-                </div>
-              </div>
-              <Link
-                to="/docs/retell-ai-calling"
-                className="shrink-0 text-sm font-medium text-indigo-600 underline-offset-2 hover:text-indigo-700 hover:underline"
-              >
-                Retell help and setup
-              </Link>
-            </div>
+          <SettingsSection
+            icon={<PhoneCall className="mt-0.5 h-4 w-4 text-sky-600" />}
+            title="AI Calling (Retell)"
+            description="Connect Retell to run outbound AI voice calls from your sequences."
+            docHref="/docs/retell-ai-calling"
+            docLabel="Retell help and setup"
+            configured={configured.retell}
+            open={!!openSections.retell}
+            onToggle={() => toggleSection("retell")}
+          >
             <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
               <FormField
                 control={form.control}
@@ -435,24 +476,18 @@ export default function SettingsPage() {
                 )}
               />
             </div>
-          </section>
+          </SettingsSection>
 
-          <section className={sectionCardClass}>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50/70 px-4 py-3">
-              <div className="flex items-start gap-2">
-                <Mail className="mt-0.5 h-4 w-4 text-violet-600" />
-                <div>
-                  <h3 className="font-medium text-slate-900">Email (SMTP) Settings</h3>
-                  <p className="text-xs text-slate-500">Configure SMTP settings for outgoing email follow-ups.</p>
-                </div>
-              </div>
-              <Link
-                to="/docs/email-smtp"
-                className="shrink-0 text-sm font-medium text-indigo-600 underline-offset-2 hover:text-indigo-700 hover:underline"
-              >
-                SMTP help and setup
-              </Link>
-            </div>
+          <SettingsSection
+            icon={<Mail className="mt-0.5 h-4 w-4 text-violet-600" />}
+            title="Email (SMTP) Settings"
+            description="Configure SMTP settings for outgoing email follow-ups."
+            docHref="/docs/email-smtp"
+            docLabel="SMTP help and setup"
+            configured={configured.smtp}
+            open={!!openSections.smtp}
+            onToggle={() => toggleSection("smtp")}
+          >
             <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
               <FormField
                 control={form.control}
@@ -534,26 +569,18 @@ export default function SettingsPage() {
                 )}
               />
             </div>
-          </section>
+          </SettingsSection>
 
-          <section className={sectionCardClass}>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50/70 px-4 py-3">
-              <div className="flex items-start gap-2">
-                <MessageSquare className="mt-0.5 h-4 w-4 text-orange-600" />
-                <div>
-                  <h3 className="font-medium text-slate-900">SMS Settings</h3>
-                  <p className="text-xs text-slate-500">
-                    Choose an SMS provider or disable SMS for text follow-ups.
-                  </p>
-                </div>
-              </div>
-              <Link
-                to="/docs/sms-settings"
-                className="shrink-0 text-sm font-medium text-indigo-600 underline-offset-2 hover:text-indigo-700 hover:underline"
-              >
-                SMS help and setup
-              </Link>
-            </div>
+          <SettingsSection
+            icon={<MessageSquare className="mt-0.5 h-4 w-4 text-orange-600" />}
+            title="SMS & WhatsApp Settings"
+            description="Choose an SMS provider or disable SMS for text follow-ups."
+            docHref="/docs/sms-settings"
+            docLabel="SMS help and setup"
+            configured={configured.sms}
+            open={!!openSections.sms}
+            onToggle={() => toggleSection("sms")}
+          >
             <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
               <FormField
                 control={form.control}
@@ -700,7 +727,7 @@ export default function SettingsPage() {
                 </>
               ) : null}
             </div>
-          </section>
+          </SettingsSection>
 
           <div className="flex flex-col gap-3 border-t bg-white/70 px-1 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-slate-500">
