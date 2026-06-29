@@ -57,6 +57,7 @@ import {
 } from "@/store/features/sequences/sequencesApi";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { logout, useCurrentUser } from "@/store/features/auth/authSlice";
+import Logo from "@/components/logo/Logo";
 import { showError, showSuccess } from "@/utils/toast";
 
 /* -------------------------------------------------------------------------- */
@@ -219,15 +220,6 @@ function apiError(err: unknown, fallback: string): string {
 /* -------------------------------------------------------------------------- */
 /*  Tiny primitives                                                           */
 /* -------------------------------------------------------------------------- */
-
-function Logo() {
-  return (
-    <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M4 17c8 2 13-1 22-11-3 9-7 14-14 16l-2-4-6-1z" fill="#4f46e5" stroke="#4f46e5" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M10 18l5 1" stroke="#a5b4fc" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function Avatar({ initials, className = "", square = false }: { initials: string; className?: string; square?: boolean }) {
   return (
@@ -619,7 +611,7 @@ export default function CreateFollowupSequencePage() {
       {/* ============================== LEFT SIDEBAR ============================== */}
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
         <div className="flex items-center gap-2 px-5 py-5">
-          <Logo />
+          <Logo className="h-7 w-7" />
           <span className="text-[15px] font-bold tracking-tight text-gray-900">Touch Base AI</span>
         </div>
 
