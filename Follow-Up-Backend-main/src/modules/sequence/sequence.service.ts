@@ -558,10 +558,25 @@ const generateSteps = async (userId: string, sequenceId: string) => {
   //    user can write them manually before activating.
   const aiSettings = await prisma.userSettings.findUnique({
     where: { userId },
-    select: { aiProvider: true, aiModel: true },
+    select: {
+      aiProvider: true,
+      aiModel: true,
+      senderName: true,
+      senderPosition: true,
+      senderCompany: true,
+      bookingLink: true,
+      serviceDescription: true,
+    },
   });
   const aiApiKey = await SettingsService.getDecryptedField(userId, "aiApiKey");
   const aiConfigured = !!(aiSettings?.aiProvider && aiApiKey);
+  const senderProfile = {
+    name: aiSettings?.senderName,
+    position: aiSettings?.senderPosition,
+    company: aiSettings?.senderCompany,
+    bookingLink: aiSettings?.bookingLink,
+    serviceDescription: aiSettings?.serviceDescription,
+  };
 
   // Template-only flow (no channels) needs AI to derive the channel plan.
   if (!aiConfigured && !hasConfiguredChannels) {
@@ -713,6 +728,7 @@ const generateSteps = async (userId: string, sequenceId: string) => {
           tone: sequence.tone,
           intensity: sequence.intensity,
         },
+        sender: senderProfile,
       });
 
       const aiResponse = await generateContent(

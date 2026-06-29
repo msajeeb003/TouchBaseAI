@@ -342,7 +342,15 @@ const generateStepContent = async (
   const [aiProvider, aiApiKey, aiModel] = await Promise.all([
     prisma.userSettings.findUnique({
       where: { userId },
-      select: { aiProvider: true, aiModel: true },
+      select: {
+        aiProvider: true,
+        aiModel: true,
+        senderName: true,
+        senderPosition: true,
+        senderCompany: true,
+        bookingLink: true,
+        serviceDescription: true,
+      },
     }),
     SettingsService.getDecryptedField(userId, "aiApiKey"),
     null,
@@ -411,6 +419,13 @@ const generateStepContent = async (
       goal: sequence.goal,
       tone: sequence.tone,
       intensity: sequence.intensity,
+    },
+    sender: {
+      name: aiProvider?.senderName,
+      position: aiProvider?.senderPosition,
+      company: aiProvider?.senderCompany,
+      bookingLink: aiProvider?.bookingLink,
+      serviceDescription: aiProvider?.serviceDescription,
     },
   });
 

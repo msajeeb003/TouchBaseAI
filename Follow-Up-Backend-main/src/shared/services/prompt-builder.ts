@@ -28,6 +28,14 @@ interface SequenceStrategy {
   intensity?: string | null;
 }
 
+interface SenderProfile {
+  name?: string | null;
+  position?: string | null;
+  company?: string | null;
+  bookingLink?: string | null;
+  serviceDescription?: string | null;
+}
+
 interface BuildPromptParams {
   promptText: string;
   sequenceName?: string;
@@ -37,7 +45,25 @@ interface BuildPromptParams {
   transcript: string | null;
   /** Optional configurator inputs from the "Create Follow-up Sequence" UI. */
   strategy?: SequenceStrategy;
+  /** Sender profile from Settings — who is sending, used to sign off + add CTAs. */
+  sender?: SenderProfile;
 }
+
+const formatSender = (sender?: SenderProfile): string => {
+  if (!sender) return "";
+  const lines: string[] = [];
+  if (sender.name) lines.push(`Sender name: ${sender.name}`);
+  if (sender.position) lines.push(`Sender role/position: ${sender.position}`);
+  if (sender.company) lines.push(`Sender company: ${sender.company}`);
+  if (sender.serviceDescription)
+    lines.push(`What the sender offers: ${sender.serviceDescription}`);
+  if (sender.bookingLink)
+    lines.push(`Booking link (include it when proposing a call): ${sender.bookingLink}`);
+  if (lines.length === 0) return "";
+  return `\n\n--- SENDER ---\n${lines.join(
+    "\n"
+  )}\nSign off as this sender and, when suggesting a call or meeting, include the booking link exactly as given (for voice/SMS, say you'll send the link).`;
+};
 
 // Per-situation instructions the AI reads to tailor content. Keyed by the
 // configurator's situation id (No-show, Post-call follow-up, etc.).
@@ -130,7 +156,7 @@ const formatPreviousSteps = (steps: PreviousStep[]): string => {
 };
 
 export const buildPrompt = (params: BuildPromptParams): string => {
-  const { promptText, sequenceName, stepContext, previousSteps, lead, transcript, strategy } =
+  const { promptText, sequenceName, stepContext, previousSteps, lead, transcript, strategy, sender } =
     params;
 
   const positionHint = getPositionHint(
@@ -146,6 +172,7 @@ export const buildPrompt = (params: BuildPromptParams): string => {
   let prompt = resolveVariables(baseText, lead, sequenceName);
 
   prompt += formatStrategy(strategy);
+  prompt += formatSender(sender);
 
   prompt += `\n\n--- STEP CONTEXT ---`;
   prompt += `\nStep: ${stepContext.stepOrder} of ${stepContext.totalSteps}`;

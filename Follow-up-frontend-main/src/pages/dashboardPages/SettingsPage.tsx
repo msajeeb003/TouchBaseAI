@@ -2,9 +2,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Bot, BarChart3, Mail, MessageSquare, PhoneCall, ChevronDown } from "lucide-react";
+import { Bot, BarChart3, Mail, MessageSquare, PhoneCall, ChevronDown, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,11 @@ const generalSettingsKeys = [
   "smtpUsername",
   "smtpPassword",
   "smtpFromName",
+  "senderName",
+  "senderPosition",
+  "senderCompany",
+  "bookingLink",
+  "serviceDescription",
 ] as const;
 const textmagicSettingsKeys = ["textmagicUsername", "textmagicApiKey"] as const;
 const twilioSettingsKeys = [
@@ -99,6 +105,11 @@ const toInitialValues = (data?: SettingsItem): SettingsFormValues => {
     retellApiKey: data?.retellApiKey ?? "",
     retellAgentId: data?.retellAgentId ?? "",
     retellCallerNumber: data?.retellCallerNumber ?? "",
+    senderName: data?.senderName ?? "",
+    senderPosition: data?.senderPosition ?? "",
+    senderCompany: data?.senderCompany ?? "",
+    bookingLink: data?.bookingLink ?? "",
+    serviceDescription: data?.serviceDescription ?? "",
   };
 };
 
@@ -233,6 +244,7 @@ export default function SettingsPage() {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
   const s = data?.data;
   const configured = {
+    profile: !!(s?.senderName || s?.bookingLink || s?.senderCompany),
     ai: !!(s?.aiProvider || s?.aiApiKey),
     fathom: !!s?.fathomApiKey,
     retell: !!(s?.retellApiKey || s?.retellAgentId),
@@ -315,6 +327,95 @@ export default function SettingsPage() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
+          <SettingsSection
+            icon={<User className="mt-0.5 h-4 w-4 text-indigo-600" />}
+            title="Sender Profile"
+            description="Your name, role, company and booking link. When you generate a sequence without picking a saved template, the AI uses these to personalize and sign the messages."
+            configured={configured.profile}
+            open={!!openSections.profile}
+            onToggle={() => toggleSection("profile")}
+          >
+            <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="senderName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Your Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Artur Abdullin" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="senderPosition"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Position / Title</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Founder, Sales Rep" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="senderCompany"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Company</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Artech Digital" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="bookingLink"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Booking Link</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://calendly.com/you/intro" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <p className="text-xs text-slate-500">
+                      The AI includes this when proposing a call.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="serviceDescription"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>What you offer (optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={3}
+                        placeholder="A short description of your product/service so the AI writes relevant, on-brand follow-ups."
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </SettingsSection>
+
           <SettingsSection
             icon={<Bot className="mt-0.5 h-4 w-4 text-indigo-600" />}
             title="AI Configuration"

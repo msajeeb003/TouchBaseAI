@@ -191,6 +191,13 @@ model UserSettings {
   retellAgentId         String?
   retellCallerNumber    String?  // E.164; Retell-purchased or Twilio SIP number (must exist in Retell). Falls back to twilioPhoneNumber if unset.
 
+  // Sender profile — used by the AI when generating without a prompt template.
+  senderName         String?
+  senderPosition     String?
+  senderCompany      String?
+  bookingLink        String?
+  serviceDescription String?  @db.Text
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

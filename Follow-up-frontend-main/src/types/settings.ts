@@ -29,6 +29,11 @@ export interface SettingsItem {
   retellApiKey: string | null;
   retellAgentId: string | null;
   retellCallerNumber: string | null;
+  senderName: string | null;
+  senderPosition: string | null;
+  senderCompany: string | null;
+  bookingLink: string | null;
+  serviceDescription: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -60,6 +65,11 @@ export interface UpdateSettingsRequestBody {
   retellApiKey?: string | null;
   retellAgentId?: string | null;
   retellCallerNumber?: string | null;
+  senderName?: string | null;
+  senderPosition?: string | null;
+  senderCompany?: string | null;
+  bookingLink?: string | null;
+  serviceDescription?: string | null;
 }
 
 export interface UpdateSettingsResponse {

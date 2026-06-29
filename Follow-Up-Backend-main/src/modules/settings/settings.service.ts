@@ -78,6 +78,11 @@ const SETTINGS_SELECT = {
   retellApiKey: true,
   retellAgentId: true,
   retellCallerNumber: true,
+  senderName: true,
+  senderPosition: true,
+  senderCompany: true,
+  bookingLink: true,
+  serviceDescription: true,
   createdAt: true,
   updatedAt: true,
 };
