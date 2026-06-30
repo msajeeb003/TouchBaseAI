@@ -20,7 +20,7 @@ export const createSequenceSchema = z.object({
       .min(1, "Minimum 1 step")
       .max(20, "Maximum 20 steps"),
     // Optional configurator inputs from the "Create Follow-up Sequence" UI.
-    situation: z.string().max(60).optional(),
+    situation: z.string().max(400).optional(),
     goal: z.string().max(60).optional(),
     tone: z.string().max(80).optional(),
     intensity: z.string().max(40).optional(),

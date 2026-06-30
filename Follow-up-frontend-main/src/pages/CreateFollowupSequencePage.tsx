@@ -239,6 +239,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 export default function CreateFollowupSequencePage() {
   const [situation, setSituation] = useState("no-show");
+  const [customSituation, setCustomSituation] = useState("");
   const [goal, setGoal] = useState("book-call");
   const [tone, setTone] = useState("🙂 Friendly & Professional");
   const [intensity, setIntensity] = useState("Standard");
@@ -356,6 +357,14 @@ export default function CreateFollowupSequencePage() {
       showError("Pick at least one automated channel (Email, SMS, WhatsApp or AI Call).");
       return;
     }
+    // Custom situation: send the user's own text (or a picked template) instead of the "custom" id.
+    const trimmedCustom = customSituation.trim();
+    if (situation === "custom" && !trimmedCustom && !selectedTemplateId) {
+      showError("Describe your custom situation or pick a saved prompt first.");
+      return;
+    }
+    const effectiveSituation =
+      situation === "custom" ? (trimmedCustom || undefined) : situation;
     const { totalSteps, intervalDays } = parseCadence(cadence);
     setSeqStatus("draft");
     try {
@@ -364,7 +373,7 @@ export default function CreateFollowupSequencePage() {
         name: `${selectedLead?.name ?? "Lead"} — ${situationLabel}`,
         totalSteps,
         promptTemplateId: selectedTemplateId || undefined,
-        situation,
+        situation: effectiveSituation,
         goal,
         tone: tone.replace(/^\S+\s/, ""),
         intensity,
@@ -734,6 +743,61 @@ export default function CreateFollowupSequencePage() {
                   })}
                 </div>
 
+                {/* Custom situation panel — shown when "Custom" is selected */}
+                {situation === "custom" && (
+                  <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 duration-300 animate-in fade-in slide-in-from-top-1">
+                    <label htmlFor="custom-situation" className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                      <Sparkles className="h-4 w-4 text-indigo-500" />
+                      Describe your situation
+                    </label>
+                    <textarea
+                      id="custom-situation"
+                      value={customSituation}
+                      onChange={(e) => setCustomSituation(e.target.value)}
+                      rows={3}
+                      maxLength={400}
+                      placeholder="e.g. Lead downloaded our pricing PDF twice but hasn't booked a demo…"
+                      className="mt-1.5 w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                    />
+                    <div className="mt-1 flex items-center justify-between">
+                      <p className="text-xs text-gray-400">Write it in your own words — the AI follows this exactly.</p>
+                      <span className="text-[11px] text-gray-300">{customSituation.length}/400</span>
+                    </div>
+
+                    {templates.length > 0 && (
+                      <div className="mt-3 border-t border-indigo-100 pt-3">
+                        <p className="mb-1.5 text-xs font-medium text-gray-500">Or use one of your saved prompts</p>
+                        <div className="flex flex-wrap gap-2">
+                          {templates.map((t) => {
+                            const active = selectedTemplateId === t.id;
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setSelectedTemplateId(active ? "" : t.id)}
+                                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-150 hover:-translate-y-0.5 active:scale-95 ${
+                                  active
+                                    ? "border-indigo-400 bg-indigo-50 text-indigo-700"
+                                    : "border-gray-200 bg-white text-gray-600 hover:border-indigo-200"
+                                }`}
+                              >
+                                <BookOpen className="h-3.5 w-3.5" />
+                                {t.name}
+                                {active && <Check className="h-3 w-3" strokeWidth={3} />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-gray-400">
+                          {selectedTemplateId
+                            ? "The AI will follow this saved prompt, plus anything you typed above."
+                            : "Pick a saved prompt to steer the AI, type your own situation above, or both."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Section 2 */}
                 <h2 className="mt-7 text-[15px] font-semibold text-gray-900">2. What is your goal?</h2>
                 <div className="mt-3 flex flex-wrap gap-2.5">
@@ -1047,7 +1111,10 @@ export default function CreateFollowupSequencePage() {
 
               <h3 className="mt-5 text-sm font-semibold text-gray-900">Follow-up Summary</h3>
               <dl className="mt-3 space-y-2.5 text-sm">
-                <SummaryRow label="Situation" value={situationLabel} />
+                <SummaryRow
+                  label="Situation"
+                  value={situation === "custom" && customSituation.trim() ? customSituation.trim() : situationLabel}
+                />
                 <SummaryRow label="Goal" value={goalLabel} />
                 <SummaryRow label="Tone" value={tone.replace(/^\S+\s/, "")} />
                 <SummaryRow label="Intensity" value={intensity} />
