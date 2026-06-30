@@ -1173,6 +1173,7 @@ export default function CreateFollowupSequencePage() {
 
       {editingStep && (
         <Modal
+          size="lg"
           title={editingStep.script ? "Edit call script" : `Edit ${editingStep.channel} message`}
           onClose={() => setEditingStep(null)}
           footer={
@@ -1197,8 +1198,8 @@ export default function CreateFollowupSequencePage() {
               <textarea
                 value={stepDraft.content}
                 onChange={(e) => setStepDraft((d) => ({ ...d, content: e.target.value }))}
-                rows={7}
-                className="w-full resize-y rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                rows={16}
+                className="min-h-[20rem] w-full resize-y rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm leading-relaxed text-gray-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
               />
             </div>
           </div>
@@ -1289,19 +1290,22 @@ function Modal({
   onClose,
   children,
   footer,
+  size = "md",
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  size?: "md" | "lg" | "xl";
 }) {
+  const maxWidth = size === "xl" ? "max-w-3xl" : size === "lg" ? "max-w-2xl" : "max-w-md";
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className={`flex max-h-[90vh] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
@@ -1310,7 +1314,7 @@ function Modal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="px-5 py-4">{children}</div>
+        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-3">{footer}</div>}
       </div>
     </div>
