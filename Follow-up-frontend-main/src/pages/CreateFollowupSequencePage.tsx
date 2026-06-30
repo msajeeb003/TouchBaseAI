@@ -6,7 +6,6 @@ import {
   BookOpen,
   Phone,
   MessageSquare,
-  BarChart3,
   Settings,
   LogOut,
   ArrowLeft,
@@ -70,11 +69,10 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/dashboard" },
   { label: "Leads", icon: Users, to: "/dashboard/leads" },
   { label: "Sequences", icon: Workflow, to: "/create-sequence", active: true },
-  { label: "Templates (Playbooks)", icon: BookOpen, to: "/dashboard/templates" },
-  { label: "Calls", icon: Phone, to: "/dashboard/calls" },
-  { label: "Messages", icon: MessageSquare, to: "/dashboard/messages" },
-  { label: "Analytics", icon: BarChart3, to: "/dashboard/analytics" },
+  { label: "Transcripts", icon: FileText, to: "/dashboard/transcripts" },
+  { label: "Templates", icon: BookOpen, to: "/dashboard/templates" },
   { label: "Settings", icon: Settings, to: "/dashboard/settings" },
+  { label: "How to configure", icon: PlayCircle, to: "/dashboard/how-to-configure" },
 ];
 
 const STEPS = [
