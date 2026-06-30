@@ -11,6 +11,7 @@ import {
   MessageSquare,
   MessageCircle,
   Phone,
+  ChevronDown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -36,6 +37,9 @@ const CHANNELS: { steps: keyof NonNullable<SequenceItem["_count"]>; icon: Lucide
   { steps: "callSteps", icon: Phone, color: "text-amber-500" },
 ];
 
+// Live sequences are sorted active-first, then paused.
+const LIVE_RANK: Record<string, number> = { active: 0, paused: 1 };
+
 function apiError(err: unknown, fallback: string): string {
   return (err as { data?: { message?: string } })?.data?.message || fallback;
 }
@@ -47,8 +51,18 @@ export default function DashboardSequencesSection() {
   const [deleteSequence] = useDeleteSequenceMutation();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [showDrafts, setShowDrafts] = useState(false);
+  const [showDone, setShowDone] = useState(false);
+
+  // Group sequences: live (active/paused) stays front-and-center, the rest tuck away.
+  const live = sequences
+    .filter((s) => s.status === "active" || s.status === "paused")
+    .sort((a, b) => (LIVE_RANK[a.status] ?? 9) - (LIVE_RANK[b.status] ?? 9));
+  const drafts = sequences.filter((s) => s.status === "draft");
+  const done = sequences.filter((s) => s.status === "completed" || s.status === "cancelled");
 
   const activeCount = sequences.filter((s) => s.status === "active").length;
+  const pausedCount = sequences.filter((s) => s.status === "paused").length;
 
   const setStatus = async (seq: SequenceItem, status: SequenceStatus) => {
     setBusyId(seq.id);
@@ -79,6 +93,136 @@ export default function DashboardSequencesSection() {
     }
   };
 
+  const renderRow = (seq: SequenceItem) => {
+    const c = seq._count;
+    const sent =
+      (c?.emailSent ?? 0) + (c?.smsSent ?? 0) + (c?.whatsappSent ?? 0) + (c?.callSent ?? 0);
+    const busy = busyId === seq.id;
+    return (
+      <tr key={seq.id} className="transition hover:bg-slate-50/60">
+        <td className="px-5 py-3">
+          <div className="font-medium text-slate-900">{seq.lead?.name ?? "—"}</div>
+          <div className="text-xs text-slate-500">{seq.name}</div>
+        </td>
+        <td className="px-3 py-3">
+          <div className="flex items-center gap-2">
+            {CHANNELS.filter((ch) => (c?.[ch.steps] ?? 0) > 0).map((ch) => {
+              const Icon = ch.icon;
+              return (
+                <span key={ch.steps} className="inline-flex items-center gap-0.5 text-xs text-slate-500">
+                  <Icon className={`h-3.5 w-3.5 ${ch.color}`} />
+                  {c?.[ch.steps]}
+                </span>
+              );
+            })}
+          </div>
+        </td>
+        <td className="px-3 py-3 tabular-nums text-slate-600">
+          {sent}/{seq.totalSteps} sent
+        </td>
+        <td className="px-3 py-3">
+          <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLE[seq.status] ?? STATUS_STYLE.draft}`}>
+            {seq.status}
+          </span>
+        </td>
+        <td className="px-5 py-3">
+          {confirmId === seq.id ? (
+            <div className="flex items-center justify-end gap-2">
+              <span className="text-xs text-slate-500">Delete?</span>
+              <button
+                onClick={() => doDelete(seq)}
+                className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700"
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setConfirmId(null)}
+                className="rounded-md px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-end gap-2">
+              {seq.status === "active" && (
+                <button
+                  onClick={() => setStatus(seq, "paused")}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
+                >
+                  <Pause className="h-3.5 w-3.5" /> Pause
+                </button>
+              )}
+              {seq.status === "paused" && (
+                <button
+                  onClick={() => setStatus(seq, "active")}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  <Play className="h-3.5 w-3.5" /> Resume
+                </button>
+              )}
+              {seq.status === "draft" && (
+                <button
+                  onClick={() => setStatus(seq, "active")}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  <Send className="h-3.5 w-3.5" /> Activate
+                </button>
+              )}
+              <button
+                onClick={() => setConfirmId(seq.id)}
+                disabled={busy}
+                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Delete
+              </button>
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
+  const renderTable = (rows: SequenceItem[]) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+          <tr>
+            <th className="px-5 py-3 font-medium">Lead / Sequence</th>
+            <th className="px-3 py-3 font-medium">Channels</th>
+            <th className="px-3 py-3 font-medium">Progress</th>
+            <th className="px-3 py-3 font-medium">Status</th>
+            <th className="px-5 py-3 text-right font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">{rows.map(renderRow)}</tbody>
+      </table>
+    </div>
+  );
+
+  const collapsibleBar = (
+    label: string,
+    count: number,
+    open: boolean,
+    onToggle: () => void,
+    badgeClass: string,
+  ) => (
+    <button
+      onClick={onToggle}
+      className="flex w-full items-center justify-between border-t border-slate-100 px-5 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+    >
+      <span className="inline-flex items-center gap-2">
+        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-0" : "-rotate-90"}`} />
+        {label}
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badgeClass}`}>{count}</span>
+      </span>
+      <span className="text-xs text-slate-400">{open ? "Hide" : "Show"}</span>
+    </button>
+  );
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -86,11 +230,18 @@ export default function DashboardSequencesSection() {
           <Workflow className="h-5 w-5 text-indigo-600" />
           Sequences
         </h3>
-        {activeCount > 0 && (
-          <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">
-            {activeCount} active
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {activeCount > 0 && (
+            <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+              {activeCount} active
+            </span>
+          )}
+          {pausedCount > 0 && (
+            <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+              {pausedCount} paused
+            </span>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
@@ -111,113 +262,33 @@ export default function DashboardSequencesSection() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th className="px-5 py-3 font-medium">Lead / Sequence</th>
-                <th className="px-3 py-3 font-medium">Channels</th>
-                <th className="px-3 py-3 font-medium">Progress</th>
-                <th className="px-3 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {sequences.map((seq) => {
-                const c = seq._count;
-                const sent =
-                  (c?.emailSent ?? 0) + (c?.smsSent ?? 0) + (c?.whatsappSent ?? 0) + (c?.callSent ?? 0);
-                const busy = busyId === seq.id;
-                return (
-                  <tr key={seq.id} className="transition hover:bg-slate-50/60">
-                    <td className="px-5 py-3">
-                      <div className="font-medium text-slate-900">{seq.lead?.name ?? "—"}</div>
-                      <div className="text-xs text-slate-500">{seq.name}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2">
-                        {CHANNELS.filter((ch) => (c?.[ch.steps] ?? 0) > 0).map((ch) => {
-                          const Icon = ch.icon;
-                          return (
-                            <span key={ch.steps} className="inline-flex items-center gap-0.5 text-xs text-slate-500">
-                              <Icon className={`h-3.5 w-3.5 ${ch.color}`} />
-                              {c?.[ch.steps]}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 tabular-nums text-slate-600">
-                      {sent}/{seq.totalSteps} sent
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLE[seq.status] ?? STATUS_STYLE.draft}`}>
-                        {seq.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      {confirmId === seq.id ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-xs text-slate-500">Delete?</span>
-                          <button
-                            onClick={() => doDelete(seq)}
-                            className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700"
-                          >
-                            Yes
-                          </button>
-                          <button
-                            onClick={() => setConfirmId(null)}
-                            className="rounded-md px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                          >
-                            No
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-end gap-2">
-                          {seq.status === "active" && (
-                            <button
-                              onClick={() => setStatus(seq, "paused")}
-                              disabled={busy}
-                              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
-                            >
-                              <Pause className="h-3.5 w-3.5" /> Pause
-                            </button>
-                          )}
-                          {seq.status === "paused" && (
-                            <button
-                              onClick={() => setStatus(seq, "active")}
-                              disabled={busy}
-                              className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-50"
-                            >
-                              <Play className="h-3.5 w-3.5" /> Resume
-                            </button>
-                          )}
-                          {seq.status === "draft" && (
-                            <button
-                              onClick={() => setStatus(seq, "active")}
-                              disabled={busy}
-                              className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-50"
-                            >
-                              <Send className="h-3.5 w-3.5" /> Activate
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setConfirmId(seq.id)}
-                            disabled={busy}
-                            className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
-                          >
-                            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Live: active + paused — the front-and-center list */}
+          {live.length > 0 ? (
+            renderTable(live)
+          ) : (
+            <div className="px-5 py-8 text-center text-sm text-slate-500">
+              No active or paused sequences right now.
+              {drafts.length > 0 && " You have drafts below ready to activate."}
+            </div>
+          )}
+
+          {/* Drafts — tucked into a collapsible bar */}
+          {drafts.length > 0 && (
+            <>
+              {collapsibleBar("Drafts", drafts.length, showDrafts, () => setShowDrafts((v) => !v), "bg-slate-100 text-slate-600")}
+              {showDrafts && renderTable(drafts)}
+            </>
+          )}
+
+          {/* Completed / cancelled — tucked into a collapsible bar */}
+          {done.length > 0 && (
+            <>
+              {collapsibleBar("Completed", done.length, showDone, () => setShowDone((v) => !v), "bg-blue-50 text-blue-700")}
+              {showDone && renderTable(done)}
+            </>
+          )}
+        </>
       )}
     </div>
   );
