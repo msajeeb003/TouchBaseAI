@@ -319,6 +319,19 @@ export default function CreateFollowupSequencePage() {
 
   const toggleChannel = (key: ChannelKey) => setChannels((p) => ({ ...p, [key]: !p[key] }));
 
+  // Templates are now picked inside the Custom panel only, so leaving Custom
+  // clears any selected template (otherwise it would apply invisibly).
+  const selectSituation = (id: string) => {
+    setSituation(id);
+    if (id !== "custom") setSelectedTemplateId("");
+  };
+  // Dismiss the Custom panel and reset its inputs back to a standard situation.
+  const cancelCustom = () => {
+    setSituation("no-show");
+    setCustomSituation("");
+    setSelectedTemplateId("");
+  };
+
   const situationLabel = SITUATIONS.find((s) => s.id === situation)?.label ?? "—";
   const goalLabel = GOALS.find((g) => g.id === goal)?.label ?? "—";
 
@@ -732,7 +745,7 @@ export default function CreateFollowupSequencePage() {
                     return (
                       <button
                         key={id}
-                        onClick={() => setSituation(id)}
+                        onClick={() => selectSituation(id)}
                         className={`flex flex-col gap-2 rounded-xl border p-3.5 text-left transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.98] ${active ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300" : "border-gray-200 bg-white hover:border-indigo-200 hover:shadow-sm"}`}
                       >
                         <Icon className={`h-5 w-5 ${active ? "text-indigo-600" : "text-gray-400"}`} />
@@ -746,10 +759,20 @@ export default function CreateFollowupSequencePage() {
                 {/* Custom situation panel — shown when "Custom" is selected */}
                 {situation === "custom" && (
                   <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 duration-300 animate-in fade-in slide-in-from-top-1">
-                    <label htmlFor="custom-situation" className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-                      <Sparkles className="h-4 w-4 text-indigo-500" />
-                      Describe your situation
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="custom-situation" className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                        <Sparkles className="h-4 w-4 text-indigo-500" />
+                        Describe your situation
+                      </label>
+                      <button
+                        type="button"
+                        onClick={cancelCustom}
+                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-500 transition-all duration-150 hover:bg-white hover:text-gray-700 active:scale-95"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Cancel
+                      </button>
+                    </div>
                     <textarea
                       id="custom-situation"
                       value={customSituation}
@@ -824,43 +847,6 @@ export default function CreateFollowupSequencePage() {
                       <SelectField label="Tone of voice" value={tone} onChange={setTone} options={["🙂 Friendly & Professional", "😎 Casual", "🎯 Direct", "💜 Warm & Empathetic"]} />
                       <SelectField label="Intensity" value={intensity} onChange={setIntensity} options={["Light", "Standard", "Aggressive"]} />
                       <SelectField label="Cadence" value={cadence} onChange={setCadence} options={["3 steps over 5 days", "5 steps over 7 days", "7 steps over 14 days"]} />
-                    </div>
-
-                    {/* Prompt template / playbook */}
-                    <div>
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <label className="text-sm font-medium text-gray-700">Prompt template</label>
-                        <button
-                          type="button"
-                          onClick={() => navigate("/dashboard/templates")}
-                          className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
-                        >
-                          Manage templates
-                        </button>
-                      </div>
-                      <div className="relative">
-                        <select
-                          value={selectedTemplateId}
-                          onChange={(e) => setSelectedTemplateId(e.target.value)}
-                          className="w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2.5 pr-9 text-sm text-gray-700 outline-none transition-all duration-150 hover:border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                        >
-                          <option value="">Auto — based on the situation above</option>
-                          {templates.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}{t.followUpStage ? ` · ${t.followUpStage}` : ""}
-                            </option>
-                          ))}
-                        </select>
-                        <BookOpen className="pointer-events-none absolute right-9 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-gray-300 sm:block" />
-                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      </div>
-                      <p className="mt-1.5 text-xs text-gray-400">
-                        {selectedTemplate
-                          ? "The AI will follow this saved playbook (plus your situation & tone)."
-                          : templates.length === 0
-                            ? "No saved templates yet — the AI uses the situation above. Create one under Templates."
-                            : "Optional. Pick a saved playbook to steer the AI, or leave on Auto."}
-                      </p>
                     </div>
                   </div>
 
