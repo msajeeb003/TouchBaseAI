@@ -1069,11 +1069,15 @@ export default function CreateFollowupSequencePage() {
                 </button>
               </div>
               <div className="mt-3 flex items-center gap-3">
-                <Avatar initials={selectedLead ? initials(selectedLead.name) : "A4"} square className="h-11 w-11 text-base" />
+                <Avatar initials={selectedLead ? initials(selectedLead.name) : "?"} square className="h-11 w-11 text-base" />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-gray-900">{selectedLead?.name ?? "Addie 40songs"}</p>
-                  <p className="truncate text-xs text-gray-500">{selectedLead?.email ?? "addie40@example.com"}</p>
-                  <p className="truncate text-xs text-gray-500">{selectedLead?.phone ?? "+233 50 123 4567"}</p>
+                  <p className="truncate text-sm font-semibold text-gray-900">{selectedLead ? selectedLead.name : "No lead selected"}</p>
+                  <p className="truncate text-xs text-gray-500">
+                    {selectedLead ? (selectedLead.email?.trim() || "No email on file") : "—"}
+                  </p>
+                  <p className="truncate text-xs text-gray-500">
+                    {selectedLead ? (selectedLead.phone?.trim() || "No phone number") : "—"}
+                  </p>
                 </div>
               </div>
               {leads.length > 0 ? (
