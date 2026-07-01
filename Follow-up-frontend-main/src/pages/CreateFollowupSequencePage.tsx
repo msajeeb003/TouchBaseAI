@@ -9,7 +9,7 @@ import {
   MessageSquare,
   Settings,
   LogOut,
-  ArrowLeft,
+  ChevronRight,
   PlayCircle,
   Sparkles,
   GripVertical,
@@ -682,14 +682,14 @@ export default function CreateFollowupSequencePage() {
       {/* ============================== MAIN ============================== */}
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-start gap-4 px-8 py-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm transition-all duration-150 hover:bg-gray-50 hover:shadow active:scale-95"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
           <div className="flex-1">
+            <nav aria-label="Breadcrumb" className="mb-1.5 flex items-center gap-1.5 text-sm text-gray-500">
+              <button onClick={() => navigate("/dashboard")} className="transition hover:text-gray-900">
+                Dashboard
+              </button>
+              <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+              <span className="font-medium text-gray-900">Sequences</span>
+            </nav>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Create Follow-up Sequence</h1>
             <p className="mt-0.5 text-sm text-gray-500">Generate a multi-channel follow-up in seconds.</p>
           </div>
