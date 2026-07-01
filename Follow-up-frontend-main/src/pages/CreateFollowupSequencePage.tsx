@@ -643,7 +643,7 @@ export default function CreateFollowupSequencePage() {
               <button
                 key={label}
                 onClick={() => handleNav(item)}
-                className={`flex w-full items-center gap-2 rounded-md p-2 text-sm transition-all duration-150 active:scale-[0.98] ${
+                className={`flex h-8 w-full items-center gap-2 overflow-hidden rounded-md p-2 text-sm transition-all duration-150 active:scale-[0.98] ${
                   active ? "bg-indigo-100 font-medium text-indigo-700" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
                 }`}
               >
