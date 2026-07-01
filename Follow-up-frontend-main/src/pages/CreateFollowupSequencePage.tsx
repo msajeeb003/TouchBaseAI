@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  LayoutDashboard,
-  Users,
-  Workflow,
+  Home,
+  Users2,
+  Layers3,
+  Shapes,
   BookOpen,
   Phone,
   MessageSquare,
@@ -66,13 +67,13 @@ import { showError, showSuccess } from "@/utils/toast";
 type NavItem = { label: string; icon: LucideIcon; to?: string; active?: boolean; soon?: boolean };
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, to: "/dashboard" },
-  { label: "Leads", icon: Users, to: "/dashboard/leads" },
-  { label: "Sequences", icon: Workflow, to: "/create-sequence", active: true },
+  { label: "Dashboard", icon: Home, to: "/dashboard" },
+  { label: "Leads", icon: Users2, to: "/dashboard/leads" },
+  { label: "Sequences", icon: Layers3, to: "/create-sequence", active: true },
   { label: "Transcripts", icon: FileText, to: "/dashboard/transcripts" },
-  { label: "Templates", icon: BookOpen, to: "/dashboard/templates" },
+  { label: "Templates", icon: Shapes, to: "/dashboard/templates" },
   { label: "Settings", icon: Settings, to: "/dashboard/settings" },
-  { label: "How to configure", icon: PlayCircle, to: "/dashboard/how-to-configure" },
+  { label: "How to configure", icon: BookOpen, to: "/dashboard/how-to-configure" },
 ];
 
 const STEPS = [
@@ -630,23 +631,23 @@ export default function CreateFollowupSequencePage() {
     >
       {/* ============================== LEFT SIDEBAR ============================== */}
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <Logo className="h-7 w-7" />
-          <span className="text-[15px] font-bold tracking-tight text-gray-900">Touch Base AI</span>
+        <div className="flex items-center gap-2 border-b border-gray-100 bg-slate-50/70 px-4 py-3 text-indigo-600">
+          <Logo className="h-8 w-8" />
+          <span className="text-sm font-semibold text-gray-900">Touch Base AI</span>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-2">
+        <nav className="flex-1 space-y-1 px-2 py-3">
           {NAV_ITEMS.map((item) => {
             const { label, icon: Icon, active, soon } = item;
             return (
               <button
                 key={label}
                 onClick={() => handleNav(item)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.98] ${
-                  active ? "bg-indigo-50 text-indigo-700" : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                className={`flex w-full items-center gap-2 rounded-md p-2 text-sm transition-all duration-150 active:scale-[0.98] ${
+                  active ? "bg-indigo-100 font-medium text-indigo-700" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
                 }`}
               >
-                <Icon className={`h-[18px] w-[18px] ${active ? "text-indigo-600" : "text-gray-400"}`} />
+                <Icon className="h-4 w-4 shrink-0" />
                 <span className="flex-1 truncate text-left">{label}</span>
                 {soon && (
                   <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
