@@ -99,6 +99,8 @@ const GOAL_GUIDANCE: Record<string, string> = {
 // forces clean, human-sounding plain text so the lead can't tell it's AI.
 const WRITING_STYLE = `\n\n--- WRITING STYLE (MUST FOLLOW) ---
 Write like a real, thoughtful person — never in a way that reveals this was written by AI.
+- BE SHORT. Leads skim on their phone and will not read a wall of text. Include only what moves this one step forward, then stop. Never recap everything that was discussed or explain background at length.
+- One clear call to action per message. Make the next step obvious and easy to say yes to.
 - Output PLAIN TEXT only. Never use Markdown or formatting symbols: no asterisks (* or **), underscores (_), backticks, or heading marks (#).
 - Do NOT use bullet points or dashes to start lines. Write in short, natural sentences and small paragraphs instead.
 - Avoid em-dashes (—); use commas or periods.
@@ -201,21 +203,21 @@ export const buildPrompt = (params: BuildPromptParams): string => {
   }
 
   if (stepContext.stepType === "EMAIL") {
-    prompt += `\n\nIMPORTANT: Start your response with "SUBJECT: " on the first line, followed by the email body in plain text — a few short, natural paragraphs. No Markdown, no ** or bullet symbols, and write any link as a plain URL.`;
+    prompt += `\n\nIMPORTANT: Start your response with "SUBJECT: " on the first line (a short, specific subject, ideally under 6 words), then the email body in plain text. Keep the whole email very short — 40 to 90 words, and never more than 120. Structure it as: a one-line greeting, then 1 to 2 tiny paragraphs (about 2-4 sentences total), then one clear call to action. Do NOT summarise or recap everything that was discussed and do NOT explain background at length — say only what moves this step forward. It must be skimmable in about 10 seconds. Put any link on its own line as a plain URL.`;
   } else if (stepContext.stepType === "WHATSAPP") {
-    prompt += `\n\nIMPORTANT: Generate only the WhatsApp message text — plain, warm and conversational (3-6 short sentences). No subject line, no Markdown, no asterisks or underscores; write any link as a plain URL.`;
+    prompt += `\n\nIMPORTANT: Generate only the WhatsApp message text — plain, warm and to the point (2 to 3 short sentences, under ~50 words). One clear ask. No subject line, no Markdown, no asterisks or underscores; write any link as a plain URL.`;
   } else if (stepContext.stepType === "CALL") {
-    prompt += `\n\nIMPORTANT: Generate structured call context for an AI voice agent. The template above describes who you represent (sender name and company)—use that for GREETING and SENDER. No subject line. Spoken lines must be natural plain speech — no asterisks, Markdown, or emoji. For voice: do not read long URLs aloud; if a meeting link exists, say you will text or email it after the call. Use this exact section headers:
+    prompt += `\n\nIMPORTANT: Generate structured call context for an AI voice agent. The template above describes who you represent (sender name and company)—use that for GREETING and SENDER. No subject line. Keep the whole call focused and brief: short, natural spoken lines, no rambling, one clear goal. Spoken lines must be natural plain speech — no asterisks, Markdown, or emoji. For voice: do not read long URLs aloud; if a meeting link exists, say you will text or email it after the call. Use this exact section headers:
 
 GREETING: The first thing the agent says when the call connects—1–2 short spoken sentences, use the lead's name, match this step's situation (e.g. missed call vs first touch vs final follow-up). Must sound natural on a phone.
 SENDER: One line—caller name and company exactly as implied by the template above (e.g. "Artur Abdullin, Artech Digital").
 OBJECTIVE: One sentence—goal of this call
-BACKGROUND: 2–4 sentences—lead context, prior messages, meeting notes from transcript if any
-KEY POINTS: 3–5 bullet lines—what to convey during the conversation
-QUESTIONS: 2–3 bullet lines—what to ask the lead
+BACKGROUND: 1–2 sentences—only the lead context that matters for this call
+KEY POINTS: 2–3 bullet lines—the essentials to convey, kept short
+QUESTIONS: 1–2 bullet lines—what to ask the lead
 CLOSING: One sentence—how to end or what next step to propose`;
   } else {
-    prompt += `\n\nIMPORTANT: Generate only the SMS text — plain and concise (2-4 sentences max). No subject line, no Markdown or symbols. If a link is essential, include it as a plain URL.`;
+    prompt += `\n\nIMPORTANT: Generate only the SMS text — 1 to 2 short sentences, under 160 characters, with a single clear ask. Plain text, no subject line, no Markdown or symbols. If a link is essential, include it as a plain URL.`;
   }
 
   const prevText = formatPreviousSteps(previousSteps);
