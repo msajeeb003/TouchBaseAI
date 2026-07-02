@@ -93,6 +93,20 @@ const GOAL_GUIDANCE: Record<string, string> = {
   other: "Goal: pursue the outcome the user set for this sequence.",
 };
 
+// Voice & formatting rules applied to every lead-facing message (email, SMS,
+// WhatsApp). These channels are plain text, so any Markdown the model emits
+// (**bold**, - bullets, [text](url) links) shows up as raw symbols. This block
+// forces clean, human-sounding plain text so the lead can't tell it's AI.
+const WRITING_STYLE = `\n\n--- WRITING STYLE (MUST FOLLOW) ---
+Write like a real, thoughtful person — never in a way that reveals this was written by AI.
+- Output PLAIN TEXT only. Never use Markdown or formatting symbols: no asterisks (* or **), underscores (_), backticks, or heading marks (#).
+- Do NOT use bullet points or dashes to start lines. Write in short, natural sentences and small paragraphs instead.
+- Avoid em-dashes (—); use commas or periods.
+- Write links as a plain URL on their own line with a short label, e.g. "Book a call here: https://example.com/abc". Never use [text](url) link syntax.
+- Do NOT add label headings like "What we covered:", "Why this matters:", or "Next step:". Let the message flow naturally.
+- Do not use emoji or decorative symbols of any kind (no 👉, ✅, 🔥). Keep it clean and professional.
+- Keep it warm, specific and concise, and avoid stiff, generic AI phrasing. Sound like a helpful human who knows this lead.`;
+
 const describe = (
   map: Record<string, string>,
   key?: string | null
@@ -179,12 +193,19 @@ export const buildPrompt = (params: BuildPromptParams): string => {
   prompt += `\nMessage type: ${stepContext.stepType}`;
   prompt += `\nPosition: ${positionHint}`;
 
+  // Plain-text channels get the human writing-style rules. CALL is exempt: it
+  // returns a structured brief for the voice agent (section headers + bullets),
+  // not a lead-facing message.
+  if (stepContext.stepType !== "CALL") {
+    prompt += WRITING_STYLE;
+  }
+
   if (stepContext.stepType === "EMAIL") {
-    prompt += `\n\nIMPORTANT: Start your response with "SUBJECT: " on the first line, followed by the email body.`;
+    prompt += `\n\nIMPORTANT: Start your response with "SUBJECT: " on the first line, followed by the email body in plain text — a few short, natural paragraphs. No Markdown, no ** or bullet symbols, and write any link as a plain URL.`;
   } else if (stepContext.stepType === "WHATSAPP") {
-    prompt += `\n\nIMPORTANT: Generate only the WhatsApp message text. Keep it conversational and friendly (3-6 sentences). No subject line. You may use light formatting like *bold* or _italic_ for emphasis.`;
+    prompt += `\n\nIMPORTANT: Generate only the WhatsApp message text — plain, warm and conversational (3-6 short sentences). No subject line, no Markdown, no asterisks or underscores; write any link as a plain URL.`;
   } else if (stepContext.stepType === "CALL") {
-    prompt += `\n\nIMPORTANT: Generate structured call context for an AI voice agent. The template above describes who you represent (sender name and company)—use that for GREETING and SENDER. No subject line. For voice: do not read long URLs aloud; if a meeting link exists, say you will text or email it after the call. Use this exact section headers:
+    prompt += `\n\nIMPORTANT: Generate structured call context for an AI voice agent. The template above describes who you represent (sender name and company)—use that for GREETING and SENDER. No subject line. Spoken lines must be natural plain speech — no asterisks, Markdown, or emoji. For voice: do not read long URLs aloud; if a meeting link exists, say you will text or email it after the call. Use this exact section headers:
 
 GREETING: The first thing the agent says when the call connects—1–2 short spoken sentences, use the lead's name, match this step's situation (e.g. missed call vs first touch vs final follow-up). Must sound natural on a phone.
 SENDER: One line—caller name and company exactly as implied by the template above (e.g. "Artur Abdullin, Artech Digital").
@@ -194,7 +215,7 @@ KEY POINTS: 3–5 bullet lines—what to convey during the conversation
 QUESTIONS: 2–3 bullet lines—what to ask the lead
 CLOSING: One sentence—how to end or what next step to propose`;
   } else {
-    prompt += `\n\nIMPORTANT: Generate only the SMS text. Keep it concise (2-4 sentences max). No subject line.`;
+    prompt += `\n\nIMPORTANT: Generate only the SMS text — plain and concise (2-4 sentences max). No subject line, no Markdown or symbols. If a link is essential, include it as a plain URL.`;
   }
 
   const prevText = formatPreviousSteps(previousSteps);
@@ -216,22 +237,62 @@ CLOSING: One sentence—how to end or what next step to propose`;
   return prompt;
 };
 
+// Safety net: strip Markdown/symbols the model may still emit, so plain-text
+// channels never show raw **, [text](url), leading bullets, etc. Not applied to
+// CALL (its output is a structured brief, not a lead-facing message).
+export const stripMarkdown = (text: string): string =>
+  text
+    // [label](https://url) -> "label: https://url" (keep the link usable)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1: $2")
+    // other [label](target) -> "label (target)"
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+    // **bold** / __bold__ -> bold
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    // *italic* / _italic_ (standalone, not mid-word) -> italic
+    .replace(/(^|[\s(])\*(?!\s)([^*\n]+?)\*(?=[\s).,!?]|$)/g, "$1$2")
+    .replace(/(^|[\s(])_(?!\s)([^_\n]+?)_(?=[\s).,!?]|$)/g, "$1$2")
+    // `code` -> code
+    .replace(/`([^`]+)`/g, "$1")
+    // leading "#" headings -> drop the marks
+    .replace(/^[ \t]*#{1,6}[ \t]+/gm, "")
+    // leading "- ", "* ", "• " bullets -> drop the marker, keep the line
+    .replace(/^[ \t]*[-*•][ \t]+/gm, "")
+    // decorative emoji / pictographs / arrows anywhere -> drop (keeps it professional)
+    .replace(
+      /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{200D}]/gu,
+      ""
+    )
+    // spaced em/en dash -> comma (keeps ranges like 2–3 intact)
+    .replace(/ +[—–] +/g, ", ")
+    // tidy up whitespace left behind
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +([.,!?;:])/g, "$1")
+    .replace(/^[ \t]+/gm, "")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
 export const parseAIResponse = (
   response: string,
   stepType: string
 ): { subject: string | null; content: string } => {
-  if (stepType === "SMS" || stepType === "WHATSAPP" || stepType === "CALL") {
+  if (stepType === "CALL") {
     return { subject: null, content: response.trim() };
+  }
+
+  if (stepType === "SMS" || stepType === "WHATSAPP") {
+    return { subject: null, content: stripMarkdown(response.trim()) };
   }
 
   const lines = response.trim().split("\n");
   const firstLine = lines[0] || "";
 
   if (firstLine.toUpperCase().startsWith("SUBJECT:")) {
-    const subject = firstLine.replace(/^SUBJECT:\s*/i, "").trim();
-    const content = lines.slice(1).join("\n").trim();
-    return { subject, content: content || response.trim() };
+    const subject = stripMarkdown(firstLine.replace(/^SUBJECT:\s*/i, "").trim());
+    const content = stripMarkdown(lines.slice(1).join("\n").trim());
+    return { subject, content: content || stripMarkdown(response.trim()) };
   }
 
-  return { subject: null, content: response.trim() };
+  return { subject: null, content: stripMarkdown(response.trim()) };
 };
