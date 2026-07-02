@@ -599,12 +599,16 @@ export default function CreateFollowupSequencePage() {
     const content = stepDraft.content;
 
     if (sequenceId && editingStep.stepId) {
+      // The API rejects null/empty fields, so only send what's actually set.
+      const body: { subject?: string; content?: string } = {};
+      if (isEmail && stepDraft.subject.trim()) body.subject = stepDraft.subject.trim();
+      if (content.trim()) body.content = content.trim();
       setSavingStep(true);
       try {
         const res = await updateStepMutation({
           sequenceId,
           stepId: editingStep.stepId,
-          body: { subject, content },
+          body,
         }).unwrap();
         setSteps((p) => p.map((s) => (s.key === editingStep.key ? mapStep(res.data) : s)));
         showSuccess("Step updated.");

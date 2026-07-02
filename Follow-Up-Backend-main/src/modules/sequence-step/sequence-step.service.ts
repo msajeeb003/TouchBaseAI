@@ -124,11 +124,25 @@ const updateStep = async (
 ) => {
   const sequence = await verifySequenceOwnership(userId, sequenceId);
 
-  if (sequence.status !== "draft") {
-    throw new AppError(400, "Steps can only be edited in draft sequences");
+  // Finished sequences are read-only. Draft/active/paused can still be edited so
+  // users can tweak upcoming (not-yet-sent) steps before they go out.
+  if (sequence.status === "completed" || sequence.status === "cancelled") {
+    throw new AppError(
+      400,
+      "This sequence has finished — its steps can no longer be edited."
+    );
   }
 
   const step = await getStepById(userId, sequenceId, stepId);
+
+  // Don't let already-sent (or in-flight) steps be rewritten after the fact.
+  const SENT_STATUSES = ["sent", "sending", "delivered", "read", "calling"];
+  if (SENT_STATUSES.includes(step.status)) {
+    throw new AppError(
+      400,
+      "This step has already been sent and can no longer be edited."
+    );
+  }
 
   const data: Record<string, unknown> = {};
 
