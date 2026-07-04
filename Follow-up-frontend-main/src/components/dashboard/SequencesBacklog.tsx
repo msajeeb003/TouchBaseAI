@@ -3,7 +3,6 @@ import {
   RefreshCw,
   Loader2,
   AlertTriangle,
-  Sparkles,
   Wand2,
   ChevronRight,
   ChevronDown,
@@ -155,13 +154,6 @@ export default function SequencesBacklog() {
           </button>
           Sequences
         </h3>
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
-        >
-          <Sparkles className="h-4 w-4" />
-          Generate Sequence
-        </button>
       </div>
 
       {/* Tabs + template filter */}
