@@ -47,6 +47,15 @@ const STATUS_SELECT: Record<string, string> = {
 const STATUS_OPTIONS: SequenceStatus[] = ["draft", "active", "paused", "cancelled"];
 const FINISHED = ["completed", "cancelled"];
 
+// Tabs keep the table short and put completed sequences in their own section.
+type TabKey = "active" | "drafts" | "completed" | "all";
+const TABS: { key: TabKey; label: string; match: (status: string) => boolean }[] = [
+  { key: "active", label: "Active", match: (s) => s === "active" || s === "paused" },
+  { key: "drafts", label: "Drafts", match: (s) => s === "draft" },
+  { key: "completed", label: "Completed", match: (s) => s === "completed" || s === "cancelled" },
+  { key: "all", label: "All", match: () => true },
+];
+
 function apiError(err: unknown, fallback: string): string {
   return (err as { data?: { message?: string } })?.data?.message || fallback;
 }
@@ -67,7 +76,7 @@ export default function SequencesBacklog() {
   const [renameSeq, setRenameSeq] = useState<SequenceItem | null>(null);
 
   const [templateFilter, setTemplateFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [tab, setTab] = useState<TabKey>("active");
 
   const templateNames = useMemo(() => {
     const set = new Set<string>();
@@ -75,12 +84,17 @@ export default function SequencesBacklog() {
     return Array.from(set).sort();
   }, [sequences]);
 
-  const rows = sequences.filter((s) => {
-    const tpl = s.promptTemplate?.name ?? "N/A";
-    if (templateFilter !== "all" && tpl !== templateFilter) return false;
-    if (statusFilter !== "all" && s.status !== statusFilter) return false;
-    return true;
+  // Apply the template filter first, then split by tab (completed lives in its own tab).
+  const byTemplate = sequences.filter(
+    (s) => templateFilter === "all" || (s.promptTemplate?.name ?? "N/A") === templateFilter
+  );
+  const counts: Record<TabKey, number> = { active: 0, drafts: 0, completed: 0, all: byTemplate.length };
+  byTemplate.forEach((s) => {
+    if (s.status === "active" || s.status === "paused") counts.active += 1;
+    else if (s.status === "draft") counts.drafts += 1;
+    else if (s.status === "completed" || s.status === "cancelled") counts.completed += 1;
   });
+  const rows = byTemplate.filter((s) => TABS.find((t) => t.key === tab)!.match(s.status));
 
   const setStatus = async (seq: SequenceItem, status: SequenceStatus) => {
     setBusyId(seq.id);
@@ -150,22 +164,32 @@ export default function SequencesBacklog() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+      {/* Tabs + template filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+        <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
+          {TABS.map((t) => {
+            const activeTab = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                  activeTab ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {t.label}
+                <span className={`rounded-full px-1.5 text-[10px] font-bold ${activeTab ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-500"}`}>
+                  {counts[t.key]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
         <LabeledSelect
           label="Filter"
           value={templateFilter}
           onChange={setTemplateFilter}
           options={[{ value: "all", label: "All" }, ...templateNames.map((t) => ({ value: t, label: t }))]}
-        />
-        <LabeledSelect
-          label="Status"
-          value={statusFilter}
-          onChange={setStatusFilter}
-          options={[
-            { value: "all", label: "All" },
-            ...["draft", "active", "paused", "completed", "cancelled"].map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) })),
-          ]}
         />
       </div>
 
@@ -180,18 +204,18 @@ export default function SequencesBacklog() {
       ) : rows.length === 0 ? (
         <div className="px-5 py-12 text-center">
           <p className="text-sm font-medium text-slate-900">
-            {sequences.length === 0 ? "No sequences yet" : "No sequences match these filters"}
+            {sequences.length === 0 ? "No sequences yet" : "Nothing in this tab"}
           </p>
           <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
             {sequences.length === 0
               ? "Generate one above and it'll appear here so you can manage it."
-              : "Try a different Filter or Status."}
+              : "Switch tabs to see your other sequences."}
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="max-h-[480px] overflow-auto">
           <table className="w-full min-w-[1100px] text-left text-sm">
-            <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+            <thead className="sticky top-0 z-10 border-b border-slate-100 bg-white text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-5 py-3 font-medium">Name</th>
                 <th className="px-3 py-3 font-medium">Lead</th>
@@ -217,13 +241,13 @@ export default function SequencesBacklog() {
                 const isActive = seq.status === "active";
                 return (
                   <tr key={seq.id} className="align-top transition hover:bg-slate-50/60">
-                    <td className="px-5 py-4 font-medium text-slate-900">{seq.name}</td>
-                    <td className="px-3 py-4 text-slate-600">{seq.lead?.name ?? "—"}</td>
-                    <td className="px-3 py-4 text-slate-600">{seq.promptTemplate?.name ?? "N/A"}</td>
-                    <td className="px-3 py-4 tabular-nums text-slate-600">{created}/{seq.totalSteps}</td>
+                    <td className="px-5 py-3 font-medium text-slate-900">{seq.name}</td>
+                    <td className="px-3 py-3 text-slate-600">{seq.lead?.name ?? "—"}</td>
+                    <td className="px-3 py-3 text-slate-600">{seq.promptTemplate?.name ?? "N/A"}</td>
+                    <td className="px-3 py-3 tabular-nums text-slate-600">{created}/{seq.totalSteps}</td>
 
                     {/* Progress */}
-                    <td className="px-3 py-4">
+                    <td className="px-3 py-3">
                       <div className="w-52">
                         <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
                           <span className="tabular-nums">{sent}/{seq.totalSteps} sent</span>
@@ -247,14 +271,14 @@ export default function SequencesBacklog() {
                     </td>
 
                     {/* Step details */}
-                    <td className="px-3 py-4">
+                    <td className="px-3 py-3">
                       <button onClick={() => setViewSeq(seq)} className="inline-flex items-center gap-0.5 text-sm font-medium text-indigo-600 transition hover:text-indigo-700">
                         View <ChevronRight className="h-3.5 w-3.5" />
                       </button>
                     </td>
 
                     {/* Generate steps & content */}
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-3 py-3 text-center">
                       <button
                         onClick={() => generateContent(seq)}
                         disabled={genId === seq.id || finished}
@@ -266,7 +290,7 @@ export default function SequencesBacklog() {
                     </td>
 
                     {/* Status */}
-                    <td className="px-3 py-4">
+                    <td className="px-3 py-3">
                       <select
                         value={seq.status}
                         disabled={busy || finished}
@@ -281,7 +305,7 @@ export default function SequencesBacklog() {
                     </td>
 
                     {/* Active toggle */}
-                    <td className="px-3 py-4">
+                    <td className="px-3 py-3">
                       <div className="flex items-center justify-center gap-2 text-[11px] font-medium text-slate-400">
                         <span>Paused</span>
                         <button
@@ -298,14 +322,14 @@ export default function SequencesBacklog() {
                     </td>
 
                     {/* Edit */}
-                    <td className="px-3 py-4 text-center">
+                    <td className="px-3 py-3 text-center">
                       <button onClick={() => setRenameSeq(seq)} title="Rename sequence" className="rounded-md p-1.5 text-indigo-500 transition hover:bg-indigo-50">
                         <Pencil className="h-4 w-4" />
                       </button>
                     </td>
 
                     {/* Delete */}
-                    <td className="px-5 py-4 text-center">
+                    <td className="px-5 py-3 text-center">
                       {confirmId === seq.id ? (
                         <div className="flex items-center justify-center gap-1.5">
                           <button onClick={() => doDelete(seq)} className="rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700">Yes</button>
