@@ -52,8 +52,6 @@ export default function DashboardPage() {
 
       <DashboardSummarySection summary={summary} />
 
-      <DashboardSequencesSection />
-
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <LeadsByStageDonutChart data={dashboardData.leadsByStage} />
         <SequencesByStatusDonutChart data={dashboardData.sequencesByStatus} />
@@ -64,6 +62,9 @@ export default function DashboardPage() {
       </div>
       {/* <LeadsOverTimeAreaChart data={dashboardData.leadsOverTime} /> */}
       <UpcomingStepsSection data={dashboardData.upcomingSteps} />
+
+      {/* Sequences backlog is anchored at the bottom of the page flow. */}
+      <DashboardSequencesSection />
     </div>
   );
 }

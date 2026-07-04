@@ -30,6 +30,7 @@ import {
   FileText,
   RotateCcw,
   ChevronDown,
+  Search,
   Clock,
   Copy,
   Trash2,
@@ -42,7 +43,14 @@ import type { SequenceStepItem } from "@/types/sequences";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useGetLeadsQuery, useUpdateLeadMutation } from "@/store/features/leads/leadsApi";
-import { useGetPromptTemplatesQuery } from "@/store/features/templates/templatesApi";
+import {
+  useGetPromptTemplatesQuery,
+  useCreatePromptTemplateMutation,
+  useUpdatePromptTemplateMutation,
+  useDeletePromptTemplateMutation,
+} from "@/store/features/templates/templatesApi";
+import type { PromptTemplateItem } from "@/types/templates";
+import type { LeadItem } from "@/types/leads";
 import {
   useCreateSequenceMutation,
   useGenerateSequenceStepsMutation,
@@ -309,6 +317,12 @@ export default function CreateFollowupSequencePage() {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // ---- Lead picker (Feature #1) ----
+  const [leadPickerOpen, setLeadPickerOpen] = useState(false);
+
+  // ---- Inline template manager (Feature #3) ----
+  const [templateMgrOpen, setTemplateMgrOpen] = useState(false);
+
   const busyGenerating = isCreating || isGenerating;
 
   // Default-select the first lead once leads load.
@@ -369,14 +383,14 @@ export default function CreateFollowupSequencePage() {
       showError("Pick at least one automated channel (Email, SMS, WhatsApp or AI Call).");
       return;
     }
-    // Custom situation: send the user's own text (or a picked template) instead of the "custom" id.
+    // Resolve the situation to send. Standard situations pass straight through.
+    // "custom" sends the user's own text; if they left it blank (and picked no
+    // template) we fall back to a neutral brief instead of blocking generation.
     const trimmedCustom = customSituation.trim();
-    if (situation === "custom" && !trimmedCustom && !selectedTemplateId) {
-      showError("Describe your custom situation or pick a saved prompt first.");
-      return;
-    }
     const effectiveSituation =
-      situation === "custom" ? (trimmedCustom || undefined) : situation;
+      situation === "custom"
+        ? trimmedCustom || (selectedTemplateId ? undefined : "a general follow-up")
+        : situation;
     const { totalSteps, intervalDays } = parseCadence(cadence);
     setSeqStatus("draft");
     try {
@@ -791,37 +805,55 @@ export default function CreateFollowupSequencePage() {
                       <span className="text-[11px] text-gray-300">{customSituation.length}/400</span>
                     </div>
 
-                    {templates.length > 0 && (
-                      <div className="mt-3 border-t border-indigo-100 pt-3">
-                        <p className="mb-1.5 text-xs font-medium text-gray-500">Or use one of your saved prompts</p>
-                        <div className="flex flex-wrap gap-2">
-                          {templates.map((t) => {
-                            const active = selectedTemplateId === t.id;
-                            return (
-                              <button
-                                key={t.id}
-                                type="button"
-                                onClick={() => setSelectedTemplateId(active ? "" : t.id)}
-                                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-150 hover:-translate-y-0.5 active:scale-95 ${
-                                  active
-                                    ? "border-indigo-400 bg-indigo-50 text-indigo-700"
-                                    : "border-gray-200 bg-white text-gray-600 hover:border-indigo-200"
-                                }`}
-                              >
-                                <BookOpen className="h-3.5 w-3.5" />
-                                {t.name}
-                                {active && <Check className="h-3 w-3" strokeWidth={3} />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="mt-1.5 text-[11px] text-gray-400">
-                          {selectedTemplateId
-                            ? "The AI will follow this saved prompt, plus anything you typed above."
-                            : "Pick a saved prompt to steer the AI, type your own situation above, or both."}
+                    <div className="mt-3 border-t border-indigo-100 pt-3">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <p className="text-xs font-medium text-gray-500">
+                          {templates.length > 0 ? "Or use one of your saved prompts" : "Save reusable prompts for next time"}
                         </p>
+                        <button
+                          type="button"
+                          onClick={() => setTemplateMgrOpen(true)}
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition hover:bg-white hover:text-indigo-700"
+                        >
+                          <Settings2 className="h-3.5 w-3.5" />
+                          Manage templates
+                        </button>
                       </div>
-                    )}
+                      {templates.length > 0 ? (
+                        <>
+                          <div className="flex flex-wrap gap-2">
+                            {templates.map((t) => {
+                              const active = selectedTemplateId === t.id;
+                              return (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => setSelectedTemplateId(active ? "" : t.id)}
+                                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all duration-150 hover:-translate-y-0.5 active:scale-95 ${
+                                    active
+                                      ? "border-indigo-400 bg-indigo-50 text-indigo-700"
+                                      : "border-gray-200 bg-white text-gray-600 hover:border-indigo-200"
+                                  }`}
+                                >
+                                  <BookOpen className="h-3.5 w-3.5" />
+                                  {t.name}
+                                  {active && <Check className="h-3 w-3" strokeWidth={3} />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="mt-1.5 text-[11px] text-gray-400">
+                            {selectedTemplateId
+                              ? "The AI will follow this saved prompt, plus anything you typed above."
+                              : "Pick a saved prompt to steer the AI, type your own situation above, or both."}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-[11px] text-gray-400">
+                          No saved prompts yet. Use <span className="font-medium">Manage templates</span> to create one you can reuse across sequences.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -1067,10 +1099,16 @@ export default function CreateFollowupSequencePage() {
             <Card className="p-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-900">Lead</h3>
-                <button onClick={openLeadEdit} className="flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-all duration-150 hover:bg-gray-50 active:scale-95">
-                  <Pencil className="h-3 w-3" />
-                  Edit
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => setLeadPickerOpen(true)} className="flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 transition-all duration-150 hover:bg-indigo-100 active:scale-95">
+                    <Users2 className="h-3 w-3" />
+                    Pick from Leads
+                  </button>
+                  <button onClick={openLeadEdit} className="flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-all duration-150 hover:bg-gray-50 active:scale-95">
+                    <Pencil className="h-3 w-3" />
+                    Edit
+                  </button>
+                </div>
               </div>
               <div className="mt-3 flex items-center gap-3">
                 <Avatar initials={selectedLead ? initials(selectedLead.name) : "?"} square className="h-11 w-11 text-base" />
@@ -1085,18 +1123,16 @@ export default function CreateFollowupSequencePage() {
                 </div>
               </div>
               {leads.length > 0 ? (
-                <div className="relative mt-3">
-                  <select
-                    value={selectedLeadId}
-                    onChange={(e) => setSelectedLeadId(e.target.value)}
-                    className="w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-8 text-xs font-medium text-gray-600 outline-none transition hover:border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                  >
-                    {leads.map((l) => (
-                      <option key={l.id} value={l.id}>{l.name}{l.email ? ` — ${l.email}` : ""}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setLeadPickerOpen(true)}
+                  className="mt-3 flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 transition hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-700 active:scale-[0.99]"
+                >
+                  <span className="truncate">
+                    {selectedLead ? `${selectedLead.name}${selectedLead.email ? ` — ${selectedLead.email}` : ""}` : "Choose a lead…"}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                </button>
               ) : (
                 <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
                   No leads loaded. Sign in and add leads to generate a real sequence.
@@ -1258,6 +1294,30 @@ export default function CreateFollowupSequencePage() {
           </p>
         </Modal>
       )}
+
+      {leadPickerOpen && (
+        <LeadPickerModal
+          leads={leads}
+          selectedLeadId={selectedLeadId}
+          onSelect={(id) => {
+            setSelectedLeadId(id);
+            setLeadPickerOpen(false);
+          }}
+          onClose={() => setLeadPickerOpen(false)}
+        />
+      )}
+
+      {templateMgrOpen && (
+        <TemplateManagerModal
+          templates={templates}
+          initialPromptText={customSituation.trim()}
+          onClose={() => setTemplateMgrOpen(false)}
+          onUse={(id) => {
+            setSelectedTemplateId(id);
+            setTemplateMgrOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1328,6 +1388,265 @@ function Modal({
         {footer && <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-3">{footer}</div>}
       </div>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Lead picker modal (Feature #1)                                            */
+/* -------------------------------------------------------------------------- */
+
+function LeadPickerModal({
+  leads,
+  selectedLeadId,
+  onSelect,
+  onClose,
+}: {
+  leads: LeadItem[];
+  selectedLeadId: string;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? leads.filter((l) =>
+        [l.name, l.email, l.phone].some((v) => (v ?? "").toLowerCase().includes(q))
+      )
+    : leads;
+
+  return (
+    <Modal title="Pick from Leads" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, email or phone…"
+            className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          />
+        </div>
+
+        <div className="max-h-80 space-y-1 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="py-6 text-center text-sm text-gray-500">No leads match "{query}".</p>
+          ) : (
+            filtered.map((l) => {
+              const active = l.id === selectedLeadId;
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => onSelect(l.id)}
+                  className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition ${
+                    active ? "border-indigo-300 bg-indigo-50" : "border-transparent hover:border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  <Avatar initials={initials(l.name)} square className="h-9 w-9 text-sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-gray-900">{l.name}</p>
+                    <p className="truncate text-xs text-gray-500">
+                      {l.email?.trim() || "No email"}
+                      {l.phone?.trim() ? ` · ${l.phone}` : ""}
+                    </p>
+                  </div>
+                  {active && <Check className="h-4 w-4 shrink-0 text-indigo-600" strokeWidth={3} />}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Inline template CRUD manager (Feature #3)                                 */
+/* -------------------------------------------------------------------------- */
+
+const emptyTemplateForm = { name: "", followUpStage: "General", promptText: "" };
+
+function TemplateManagerModal({
+  templates,
+  initialPromptText,
+  onClose,
+  onUse,
+}: {
+  templates: PromptTemplateItem[];
+  initialPromptText: string;
+  onClose: () => void;
+  onUse: (id: string) => void;
+}) {
+  const [createTemplate, { isLoading: isCreating }] = useCreatePromptTemplateMutation();
+  const [updateTemplate, { isLoading: isUpdating }] = useUpdatePromptTemplateMutation();
+  const [deleteTemplate] = useDeletePromptTemplateMutation();
+
+  // editingId: null = not editing, "" = creating a new one, else editing that id.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyTemplateForm);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const startCreate = () => {
+    setForm({ ...emptyTemplateForm, promptText: initialPromptText });
+    setEditingId("");
+  };
+
+  const startEdit = (t: PromptTemplateItem) => {
+    setEditingId(t.id);
+    setForm({ name: t.name, followUpStage: t.followUpStage || "General", promptText: t.promptText });
+  };
+
+  const closeForm = () => {
+    setEditingId(null);
+    setForm(emptyTemplateForm);
+  };
+
+  const saveForm = async () => {
+    const name = form.name.trim();
+    const followUpStage = form.followUpStage.trim() || "General";
+    const promptText = form.promptText.trim();
+    if (!name) return showError("Give the template a name.");
+    if (promptText.length < 10) return showError("The prompt needs at least 10 characters.");
+    try {
+      if (editingId) {
+        await updateTemplate({ id: editingId, body: { name, followUpStage, promptText } }).unwrap();
+        showSuccess("Template updated.");
+      } else {
+        await createTemplate({ name, followUpStage, promptText }).unwrap();
+        showSuccess("Template created.");
+      }
+      closeForm();
+    } catch (err) {
+      showError(apiError(err, "Failed to save template."));
+    }
+  };
+
+  const doDelete = async (id: string) => {
+    setConfirmId(null);
+    setBusyId(id);
+    try {
+      await deleteTemplate(id).unwrap();
+      showSuccess("Template deleted.");
+      if (editingId === id) closeForm();
+    } catch (err) {
+      showError(apiError(err, "Failed to delete template."));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const formOpen = editingId !== null;
+
+  return (
+    <Modal
+      title="Manage prompt templates"
+      size="lg"
+      onClose={onClose}
+      footer={
+        <button onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-200">
+          Done
+        </button>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-500">
+            Create, edit and delete the saved prompts used in your sequences.
+          </p>
+          {!formOpen && (
+            <button
+              onClick={startCreate}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 active:scale-95"
+            >
+              <Plus className="h-4 w-4" />
+              New template
+            </button>
+          )}
+        </div>
+
+        {/* Create / edit form */}
+        {formOpen && (
+          <div className="space-y-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
+            <p className="text-sm font-semibold text-gray-900">
+              {editingId ? "Edit template" : "New template"}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
+              <LabeledInput label="Name" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} />
+              <LabeledInput label="Stage" value={form.followUpStage} onChange={(v) => setForm((f) => ({ ...f, followUpStage: v }))} />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">Prompt</label>
+              <textarea
+                value={form.promptText}
+                onChange={(e) => setForm((f) => ({ ...f, promptText: e.target.value }))}
+                rows={6}
+                placeholder="Describe how the AI should write for this situation…"
+                className="w-full resize-y rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed text-gray-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              />
+              <p className="mt-1 text-[11px] text-gray-400">{form.promptText.trim().length} characters (min 10)</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={closeForm} className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-white">
+                Cancel
+              </button>
+              <button
+                onClick={saveForm}
+                disabled={isCreating || isUpdating}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-70"
+              >
+                {isCreating || isUpdating ? "Saving…" : editingId ? "Save changes" : "Create template"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Existing templates */}
+        <div className="space-y-2">
+          {templates.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-gray-200 py-8 text-center text-sm text-gray-500">
+              No templates yet. Click <span className="font-medium">New template</span> to create your first one.
+            </p>
+          ) : (
+            templates.map((t) => (
+              <div key={t.id} className="flex items-center gap-3 rounded-xl border border-gray-200 p-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                  <BookOpen className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium text-gray-900">{t.name}</p>
+                    {t.followUpStage && (
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">{t.followUpStage}</span>
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-gray-500">{t.promptText}</p>
+                </div>
+                {confirmId === t.id ? (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="text-xs text-gray-500">Delete?</span>
+                    <button onClick={() => doDelete(t.id)} className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700">Yes</button>
+                    <button onClick={() => setConfirmId(null)} className="rounded-md px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100">No</button>
+                  </div>
+                ) : (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button onClick={() => onUse(t.id)} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50">Use</button>
+                    <button onClick={() => startEdit(t)} className="rounded-md border border-gray-200 p-1.5 text-gray-500 transition hover:bg-gray-50" title="Edit">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => setConfirmId(t.id)} disabled={busyId === t.id} className="rounded-md border border-red-200 p-1.5 text-red-500 transition hover:bg-red-50 disabled:opacity-50" title="Delete">
+                      {busyId === t.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 
