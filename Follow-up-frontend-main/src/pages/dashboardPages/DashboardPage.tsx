@@ -6,7 +6,6 @@ import DashboardSummarySection from "@/components/dashboard/DashboardSummarySect
 import SequencesByStatusDonutChart from "@/components/dashboard/SequencesByStatusDonutChart";
 import SentTrendLineChart from "@/components/dashboard/SentTrendLineChart";
 import UpcomingStepsSection from "@/components/dashboard/UpcomingStepsSection";
-import DashboardSequencesSection from "@/components/dashboard/DashboardSequencesSection";
 import { useGetDashboardQuery } from "@/store/features/dashboard/dashboardApi";
 
 export default function DashboardPage() {
@@ -51,8 +50,6 @@ export default function DashboardPage() {
       </div>
 
       <DashboardSummarySection summary={summary} />
-
-      <DashboardSequencesSection />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <LeadsByStageDonutChart data={dashboardData.leadsByStage} />
