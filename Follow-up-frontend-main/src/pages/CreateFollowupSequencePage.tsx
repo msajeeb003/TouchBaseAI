@@ -756,8 +756,20 @@ export default function CreateFollowupSequencePage() {
 
               <div className="border-t border-gray-100 pt-6">
                 {/* Section 1 */}
-                <h2 className="text-[15px] font-semibold text-gray-900">1. What happened with this lead?</h2>
-                <p className="mb-4 mt-0.5 text-sm text-gray-500">This helps us choose the right follow-up strategy.</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-[15px] font-semibold text-gray-900">1. What happened with this lead?</h2>
+                    <p className="mb-4 mt-0.5 text-sm text-gray-500">This helps us choose the right follow-up strategy.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateMgrOpen(true)}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all duration-150 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 active:scale-95"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                    Manage templates
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                   {SITUATIONS.map(({ id, label, desc, icon: Icon }) => {
                     const active = situation === id;
