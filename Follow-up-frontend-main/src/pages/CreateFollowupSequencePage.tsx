@@ -66,7 +66,7 @@ import {
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { logout, useCurrentUser } from "@/store/features/auth/authSlice";
 import Logo from "@/components/logo/Logo";
-import DashboardSequencesSection from "@/components/dashboard/DashboardSequencesSection";
+import SequencesBacklog from "@/components/dashboard/SequencesBacklog";
 import { showError, showSuccess } from "@/utils/toast";
 
 /* -------------------------------------------------------------------------- */
@@ -1195,8 +1195,7 @@ export default function CreateFollowupSequencePage() {
 
         {/* Sequences backlog — anchored at the bottom of the Sequences page */}
         <div className="px-8 pb-10">
-          <h2 className="mb-3 text-lg font-bold tracking-tight text-gray-900">Sequences Backlog</h2>
-          <DashboardSequencesSection />
+          <SequencesBacklog />
         </div>
       </main>
 
