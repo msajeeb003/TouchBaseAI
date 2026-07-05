@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import { useAppSelector } from "@/store/hooks";
+import { decodeAuthToken, isTokenValid } from "@/utils/auth";
 import Logo from "@/components/logo/Logo";
 import landingPageLogo from "@/assets/landingpage logo.png";
 import HowItWorksSection, { WhatsIcon } from "@/components/landing/HowItWorksSection";
@@ -46,6 +48,8 @@ function LandingBrandMark({ className }: { className?: string }) {
 }
 
 export default function LandingPage() {
+  const token = useAppSelector((state) => state.auth.token);
+  const isAuthenticated = isTokenValid(token) && Boolean(decodeAuthToken(token)?.email);
   return (
     <div
       className="min-h-screen bg-white text-[#1F2937] antialiased"
@@ -71,19 +75,31 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <Link
-              to="/auth/signin"
-              className="text-sm font-medium text-[#6B7280] transition-colors hover:text-[#111111]"
-            >
-              Log in
-            </Link>
-            <Link
-              to="/auth/signin"
-              className="rounded-[10px] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-colors hover:bg-gray-800"
-              style={{ backgroundColor: brandBlack }}
-            >
-              Get Access
-            </Link>
+            {isAuthenticated ? (
+              <Link
+                to="/dashboard"
+                className="rounded-[10px] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-colors hover:bg-gray-800"
+                style={{ backgroundColor: brandBlack }}
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/auth/signin"
+                  className="text-sm font-medium text-[#6B7280] transition-colors hover:text-[#111111]"
+                >
+                  Log in
+                </Link>
+                <Link
+                  to="/auth/signin"
+                  className="rounded-[10px] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-colors hover:bg-gray-800"
+                  style={{ backgroundColor: brandBlack }}
+                >
+                  Get Access
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>

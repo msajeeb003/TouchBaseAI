@@ -24,6 +24,7 @@ import EmailSmtpDocsPage from "./pages/docsPages/EmailSmtpDocsPage";
 import SmsSettingsDocsPage from "./pages/docsPages/SmsSettingsDocsPage";
 import RetellAiCallingDocsPage from "./pages/docsPages/RetellAiCallingDocsPage";
 import RequireAuth from "./routes/RequireAuth";
+import GuestRoute from "./routes/GuestRoute";
 import LandingPage from "./pages/LandingPage";
 import CreateFollowupSequencePage from "./pages/CreateFollowupSequencePage";
 import SignIn from "./pages/auth/SignIn";
@@ -40,8 +41,10 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/auth/signin" element={<SignIn />} />
-          <Route path="/auth/signup" element={<Signup />} />
+          <Route element={<GuestRoute />}>
+            <Route path="/auth/signin" element={<SignIn />} />
+            <Route path="/auth/signup" element={<Signup />} />
+          </Route>
           <Route element={<RequireAuth />}>
             <Route element={<Dashboard />}>
               <Route path="dashboard">
