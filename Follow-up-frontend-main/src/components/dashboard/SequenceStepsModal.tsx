@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Loader2, AlertTriangle, X, Mail, MessageSquare, MessageCircle, Phone } from "lucide-react";
+import { Loader2, AlertTriangle, X, Mail, MessageSquare, MessageCircle, Phone, RotateCcw } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   useGetSequenceStepsQuery,
   useUpdateSequenceStepMutation,
+  useRetrySequenceStepMutation,
 } from "@/store/features/sequences/sequencesApi";
 import type { SequenceItem, SequenceStepItem } from "@/types/sequences";
 import { showError, showSuccess } from "@/utils/toast";
@@ -35,8 +36,22 @@ export default function SequenceStepsModal({ seq, onClose }: { seq: SequenceItem
   const { data, isLoading, isError } = useGetSequenceStepsQuery(seq.id);
   const steps = data?.data ?? [];
   const [updateStep] = useUpdateSequenceStepMutation();
+  const [retryStep] = useRetrySequenceStepMutation();
   const [drafts, setDrafts] = useState<Record<string, { subject: string; content: string }>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  const retry = async (s: SequenceStepItem) => {
+    setRetryingId(s.id);
+    try {
+      await retryStep({ sequenceId: seq.id, stepId: s.id }).unwrap();
+      showSuccess("Step re-queued — it will send again shortly (while the sequence is active).");
+    } catch (err) {
+      showError(apiError(err, "Failed to retry step."));
+    } finally {
+      setRetryingId(null);
+    }
+  };
 
   // Seed a draft for each step once loaded, without clobbering in-progress edits.
   useEffect(() => {
@@ -128,20 +143,32 @@ export default function SequenceStepsModal({ seq, onClose }: { seq: SequenceItem
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
                         {stepTiming(s)}
                       </span>
-                      <span className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-medium capitalize text-slate-500">
+                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${s.status === "failed" ? "border-red-200 bg-red-50 text-red-600" : "border-slate-200 text-slate-500"}`}>
                         {s.status}
                       </span>
                     </div>
-                    {!readOnly && (
-                      <button
-                        onClick={() => save(s)}
-                        disabled={savingId === s.id}
-                        className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                      >
-                        {savingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                        Save
-                      </button>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {s.status === "failed" && (
+                        <button
+                          onClick={() => retry(s)}
+                          disabled={retryingId === s.id}
+                          className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-60"
+                        >
+                          {retryingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                          Retry
+                        </button>
+                      )}
+                      {!readOnly && (
+                        <button
+                          onClick={() => save(s)}
+                          disabled={savingId === s.id}
+                          className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                        >
+                          {savingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                          Save
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {s.stepType === "EMAIL" && (
@@ -167,6 +194,11 @@ export default function SequenceStepsModal({ seq, onClose }: { seq: SequenceItem
                   />
                   {readOnly && (
                     <p className="mt-1 text-[11px] text-slate-400">Already sent — shown for reference.</p>
+                  )}
+                  {s.status === "failed" && s.sendLog && (
+                    <p className="mt-1.5 rounded-md bg-red-50 px-2 py-1 text-[11px] leading-relaxed text-red-600">
+                      Last error: {s.sendLog.replace(/^Failed:\s*/, "")}
+                    </p>
                   )}
                 </div>
               );

@@ -155,6 +155,23 @@ const regenerateAllStepsContent = catchAsync(
   }
 );
 
+const retryStep = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    const result = await SequenceStepService.retryStep(
+      req.user!.id,
+      req.params.sequenceId as string,
+      req.params.stepId as string
+    );
+
+    sendResponse(res, {
+      statusCode: 200,
+      success: true,
+      message: "Step re-queued for sending",
+      data: result,
+    });
+  }
+);
+
 export const SequenceStepController = {
   createStep,
   getSteps,
@@ -165,4 +182,5 @@ export const SequenceStepController = {
   deleteAllSteps,
   generateStepContent,
   regenerateAllStepsContent,
+  retryStep,
 };

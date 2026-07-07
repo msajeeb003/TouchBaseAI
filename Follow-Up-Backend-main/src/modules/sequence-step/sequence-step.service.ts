@@ -507,6 +507,36 @@ const regenerateAllStepsContent = async (userId: string, sequenceId: string) => 
   return { steps: updatedSteps, results };
 };
 
+// Re-queue a failed step so it sends again on the next cycle (e.g. after the
+// underlying issue — a fixed phone number, enabled Twilio geo permission — is
+// resolved). Only actually sends while the sequence is active.
+const retryStep = async (userId: string, sequenceId: string, stepId: string) => {
+  const sequence = await verifySequenceOwnership(userId, sequenceId);
+
+  if (sequence.status === "completed" || sequence.status === "cancelled") {
+    throw new AppError(400, "This sequence has finished — its steps can't be retried.");
+  }
+
+  const step = await getStepById(userId, sequenceId, stepId);
+
+  if (step.status !== SEQUENCE_STEP_STATUS.FAILED) {
+    throw new AppError(400, "Only failed steps can be retried.");
+  }
+  if (!step.content) {
+    throw new AppError(400, "Generate the step content before retrying.");
+  }
+
+  return prisma.sequenceStep.update({
+    where: { id: stepId },
+    data: {
+      status: SEQUENCE_STEP_STATUS.SCHEDULED,
+      scheduledAt: new Date(),
+      sentAt: null,
+      sendLog: null,
+    },
+  });
+};
+
 export const SequenceStepService = {
   createStep,
   getSteps,
@@ -517,4 +547,5 @@ export const SequenceStepService = {
   deleteAllSteps,
   generateStepContent,
   regenerateAllStepsContent,
+  retryStep,
 };

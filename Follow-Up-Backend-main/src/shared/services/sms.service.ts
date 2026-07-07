@@ -1,5 +1,6 @@
 import prisma from "../prisma";
 import { SettingsService } from "../../modules/settings/settings.service";
+import { toE164 } from "../utils/phone";
 
 // ── TextMagic ───────────────────────────────────────────────────────
 
@@ -129,6 +130,11 @@ export const sendSms = async (
   phone: string,
   text: string
 ): Promise<void> => {
+  const to = toE164(phone);
+  if (!to) {
+    throw new Error(`Invalid phone number: "${phone}"`);
+  }
+
   const settings = await prisma.userSettings.findUnique({
     where: { userId },
     select: { smsProvider: true },
@@ -142,12 +148,12 @@ export const sendSms = async (
 
   if (provider === "textmagic") {
     const config = await getTextMagicConfig(userId);
-    return sendTextMagicSms(config, phone, text);
+    return sendTextMagicSms(config, to, text);
   }
 
   if (provider === "twilio") {
     const config = await getTwilioConfig(userId);
-    return sendTwilioSms(config, phone, text);
+    return sendTwilioSms(config, to, text);
   }
 
   throw new Error(`Unknown SMS provider: "${provider}"`);

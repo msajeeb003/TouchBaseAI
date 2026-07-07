@@ -1,5 +1,6 @@
 import prisma from "../prisma";
 import { SettingsService } from "../../modules/settings/settings.service";
+import { toE164 } from "../utils/phone";
 
 interface RetellConfig {
   apiKey: string;
@@ -40,6 +41,11 @@ interface TriggerCallResult {
 export const triggerCall = async (
   params: TriggerCallParams
 ): Promise<TriggerCallResult> => {
+  const toNumber = toE164(params.phone);
+  if (!toNumber) {
+    throw new Error(`Invalid phone number: "${params.phone}"`);
+  }
+
   const config = await getRetellConfig(params.userId);
   const fromNumber = await getCallerNumber(params.userId);
 
@@ -53,7 +59,7 @@ export const triggerCall = async (
       },
       body: JSON.stringify({
         from_number: fromNumber,
-        to_number: params.phone,
+        to_number: toNumber,
         agent_id: config.agentId,
         retell_llm_dynamic_variables: {
           context: params.agentPrompt,

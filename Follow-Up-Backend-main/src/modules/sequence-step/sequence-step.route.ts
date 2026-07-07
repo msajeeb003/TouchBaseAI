@@ -48,4 +48,6 @@ router.delete("/:stepId", auth, SequenceStepController.deleteStep);
 
 router.post("/:stepId/generate", auth, SequenceStepController.generateStepContent);
 
+router.post("/:stepId/retry", auth, SequenceStepController.retryStep);
+
 export const SequenceStepRoutes = router;

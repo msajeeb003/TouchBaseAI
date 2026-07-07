@@ -118,6 +118,16 @@ export const sequencesApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Sequences"],
     }),
+    retrySequenceStep: builder.mutation<
+      { success: boolean; message: string },
+      { sequenceId: string; stepId: string }
+    >({
+      query: ({ sequenceId, stepId }) => ({
+        url: `/sequences/${sequenceId}/steps/${stepId}/retry`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Sequences", "Dashboard"],
+    }),
     createSequence: builder.mutation<CreateSequenceResponse, CreateSequenceRequestBody>({
       query: (body) => ({
         url: "/sequences",
@@ -160,6 +170,7 @@ export const {
   useGenerateSequenceStepsMutation,
   useRegenerateAllStepContentMutation,
   useUpdateSequenceStepMutation,
+  useRetrySequenceStepMutation,
   useCreateSequenceMutation,
   useUpdateSequenceMutation,
   useDeleteSequenceMutation,

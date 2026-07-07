@@ -1,6 +1,7 @@
 import prisma from "../prisma";
 import { SettingsService } from "../../modules/settings/settings.service";
 import config from "../../config";
+import { toE164 } from "../utils/phone";
 
 interface WhatsAppConfig {
   accountSid: string;
@@ -104,6 +105,11 @@ export const sendWhatsApp = async (
   phone: string,
   text: string
 ): Promise<SendWhatsAppResult> => {
+  const to = toE164(phone);
+  if (!to) {
+    throw new Error(`Invalid phone number: "${phone}"`);
+  }
+
   const twilioConfig = await getWhatsAppConfig(userId);
 
   const url = `https://api.twilio.com/2010-04-01/Accounts/${twilioConfig.accountSid}/Messages.json`;
@@ -112,7 +118,7 @@ export const sendWhatsApp = async (
   );
 
   const params = new URLSearchParams({
-    To: `whatsapp:${phone}`,
+    To: `whatsapp:${to}`,
     From: `whatsapp:${twilioConfig.whatsappNumber}`,
     Body: text,
   });
@@ -142,7 +148,7 @@ export const sendWhatsApp = async (
   }
 
   const data = parseTwilioMessageBody(raw);
-  assertNoTwilioError(data, phone, twilioConfig.whatsappNumber);
+  assertNoTwilioError(data, to, twilioConfig.whatsappNumber);
 
   if (!data.sid) {
     throw new Error("Twilio WhatsApp: missing MessageSid in response");
