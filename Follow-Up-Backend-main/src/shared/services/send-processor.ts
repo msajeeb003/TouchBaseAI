@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import prisma from "../prisma";
+import AppError from "../errors/AppError";
 import { SEQUENCE_STEP_STATUS } from "../sequence-step";
 import { syncLeadStatusFromActiveSequences } from "../../modules/lead/lead.service";
 import { sendEmail } from "./email.service";
@@ -27,14 +28,17 @@ const processStep = async (step: {
       company: string | null;
     };
   };
-}): Promise<{
+},
+  options: { allowInactive?: boolean } = {}
+): Promise<{
   success: boolean;
   log: string;
   async?: boolean;
   externalMessageId?: string;
   whatsappPending?: boolean;
 }> => {
-  if (step.sequence.status !== "active") {
+  // The cron only sends for active sequences; a manual "Send now" may bypass this.
+  if (!options.allowInactive && step.sequence.status !== "active") {
     return { success: false, log: "Failed: Sequence no longer active" };
   }
 
@@ -268,6 +272,71 @@ const processDueSteps = async () => {
   } finally {
     isProcessing = false;
   }
+};
+
+/**
+ * Send a single step immediately (used by the "Retry / Send now" action) and
+ * persist the outcome. Unlike the cron this doesn't require the sequence to be
+ * active, so a user can push out one step on demand.
+ */
+export const sendStepNow = async (
+  userId: string,
+  sequenceId: string,
+  stepId: string
+): Promise<{ success: boolean; log: string }> => {
+  const step = await prisma.sequenceStep.findFirst({
+    where: { id: stepId, sequenceId, sequence: { userId } },
+    include: {
+      sequence: {
+        include: {
+          lead: { select: { name: true, email: true, phone: true, company: true } },
+        },
+      },
+    },
+  });
+
+  if (!step) {
+    throw new AppError(404, "Step not found");
+  }
+  if (step.sequence.status === "completed" || step.sequence.status === "cancelled") {
+    throw new AppError(400, "This sequence has finished — its steps can't be sent.");
+  }
+  if (!step.content) {
+    throw new AppError(400, "Generate the step content before sending.");
+  }
+
+  const result = await processStep(step, { allowInactive: true });
+
+  if (result.success && result.async) {
+    await prisma.sequenceStep.update({
+      where: { id: step.id },
+      data: {
+        status: result.whatsappPending
+          ? SEQUENCE_STEP_STATUS.SENDING
+          : SEQUENCE_STEP_STATUS.CALLING,
+        sendLog: result.log,
+        ...(result.externalMessageId && { externalMessageId: result.externalMessageId }),
+      },
+    });
+  } else if (result.success) {
+    await prisma.sequenceStep.update({
+      where: { id: step.id },
+      data: {
+        status: SEQUENCE_STEP_STATUS.SENT,
+        sentAt: new Date(),
+        sendLog: result.log,
+      },
+    });
+  } else {
+    await prisma.sequenceStep.update({
+      where: { id: step.id },
+      data: { status: SEQUENCE_STEP_STATUS.FAILED, sendLog: result.log },
+    });
+  }
+
+  await checkSequenceCompletion(step.sequenceId);
+
+  return { success: result.success, log: result.log };
 };
 
 export const startSendProcessor = () => {

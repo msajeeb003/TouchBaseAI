@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, AlertTriangle, X, Mail, MessageSquare, MessageCircle, Phone, RotateCcw } from "lucide-react";
+import { Loader2, AlertTriangle, X, Mail, MessageSquare, MessageCircle, Phone, Send } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   useGetSequenceStepsQuery,
@@ -44,10 +44,14 @@ export default function SequenceStepsModal({ seq, onClose }: { seq: SequenceItem
   const retry = async (s: SequenceStepItem) => {
     setRetryingId(s.id);
     try {
-      await retryStep({ sequenceId: seq.id, stepId: s.id }).unwrap();
-      showSuccess("Step re-queued — it will send again shortly (while the sequence is active).");
+      const res = await retryStep({ sequenceId: seq.id, stepId: s.id }).unwrap();
+      if (res.data?.success) {
+        showSuccess("Sent just now.");
+      } else {
+        showError(res.data?.log?.replace(/^Failed:\s*/, "") || "Send failed — see the step for details.");
+      }
     } catch (err) {
-      showError(apiError(err, "Failed to retry step."));
+      showError(apiError(err, "Failed to send step."));
     } finally {
       setRetryingId(null);
     }
@@ -148,14 +152,14 @@ export default function SequenceStepsModal({ seq, onClose }: { seq: SequenceItem
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
-                      {s.status === "failed" && (
+                      {(s.status === "failed" || s.status === "scheduled") && (
                         <button
                           onClick={() => retry(s)}
                           disabled={retryingId === s.id}
                           className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-60"
                         >
-                          {retryingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                          Retry
+                          {retryingId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                          {retryingId === s.id ? "Sending…" : "Send now"}
                         </button>
                       )}
                       {!readOnly && (

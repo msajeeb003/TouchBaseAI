@@ -3,6 +3,7 @@ import { AuthRequest } from "../../shared/middleware/auth";
 import catchAsync from "../../shared/utils/catchAsync";
 import sendResponse from "../../shared/utils/sendResponse";
 import { SequenceStepService } from "./sequence-step.service";
+import { sendStepNow } from "../../shared/services/send-processor";
 
 const createStep = catchAsync(
   async (req: AuthRequest, res: Response) => {
@@ -157,7 +158,8 @@ const regenerateAllStepsContent = catchAsync(
 
 const retryStep = catchAsync(
   async (req: AuthRequest, res: Response) => {
-    const result = await SequenceStepService.retryStep(
+    // Send this one step right now and report the outcome.
+    const result = await sendStepNow(
       req.user!.id,
       req.params.sequenceId as string,
       req.params.stepId as string
@@ -166,7 +168,7 @@ const retryStep = catchAsync(
     sendResponse(res, {
       statusCode: 200,
       success: true,
-      message: "Step re-queued for sending",
+      message: result.success ? "Message sent" : "Send failed",
       data: result,
     });
   }

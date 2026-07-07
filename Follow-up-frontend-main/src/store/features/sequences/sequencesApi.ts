@@ -119,7 +119,7 @@ export const sequencesApi = baseApi.injectEndpoints({
       invalidatesTags: ["Sequences"],
     }),
     retrySequenceStep: builder.mutation<
-      { success: boolean; message: string },
+      { success: boolean; message: string; data: { success: boolean; log: string } },
       { sequenceId: string; stepId: string }
     >({
       query: ({ sequenceId, stepId }) => ({
