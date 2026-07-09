@@ -2,6 +2,7 @@ import prisma from "../prisma";
 import { SettingsService } from "../../modules/settings/settings.service";
 import config from "../../config";
 import { toE164 } from "../utils/phone";
+import { twilioErrorHint } from "./twilio-errors";
 
 interface WhatsAppConfig {
   accountSid: string;
@@ -70,25 +71,15 @@ const parseTwilioMessageBody = (raw: string): TwilioMessageBody => {
   }
 };
 
-const assertNoTwilioError = (
-  data: TwilioMessageBody,
-  phone: string,
-  whatsappNumber: string
-): void => {
+const assertNoTwilioError = (data: TwilioMessageBody): void => {
   const errorCode =
     data.error_code != null && data.error_code !== ""
       ? Number(data.error_code)
       : 0;
 
   if (errorCode) {
-    if (errorCode === 63015) {
-      throw new Error(
-        `Twilio sandbox 63015: ${phone} has not joined your WhatsApp sandbox. ` +
-          `From that phone, send your sandbox "join <keyword>" in WhatsApp to ${whatsappNumber}, then retry.`
-      );
-    }
     throw new Error(
-      `Twilio WhatsApp error ${errorCode}: ${data.error_message ?? "unknown"}`
+      `Failed (${errorCode}): ${data.error_message ?? "unknown"}${twilioErrorHint(errorCode)}`
     );
   }
 
@@ -144,11 +135,20 @@ export const sendWhatsApp = async (
   const raw = await response.text();
 
   if (!response.ok) {
-    throw new Error(`Twilio WhatsApp API error (${response.status}): ${raw}`);
+    let code = 0;
+    let message = raw;
+    try {
+      const err = JSON.parse(raw) as { code?: number; message?: string };
+      code = Number(err.code) || 0;
+      message = err.message || raw;
+    } catch {
+      /* keep the raw body */
+    }
+    throw new Error(`Failed (${code || response.status}): ${message}${twilioErrorHint(code)}`);
   }
 
   const data = parseTwilioMessageBody(raw);
-  assertNoTwilioError(data, to, twilioConfig.whatsappNumber);
+  assertNoTwilioError(data);
 
   if (!data.sid) {
     throw new Error("Twilio WhatsApp: missing MessageSid in response");

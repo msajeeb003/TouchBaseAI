@@ -1,6 +1,7 @@
 import prisma from "../../shared/prisma";
 import { SEQUENCE_STEP_STATUS } from "../../shared/sequence-step";
 import { syncLeadStatusFromActiveSequences } from "../lead/lead.service";
+import { twilioErrorHint } from "../../shared/services/twilio-errors";
 
 const FINAL_SUCCESS = new Set(["sent", "delivered", "read"]);
 const FINAL_FAILURE = new Set(["failed", "undelivered"]);
@@ -72,7 +73,7 @@ export const processTwilioWhatsAppStatus = async (
   if (FINAL_FAILURE.has(messageStatus) || errorCode > 0) {
     const log =
       errorCode > 0
-        ? `Failed (${errorCode}): ${errorMessage || messageStatus}`
+        ? `Failed (${errorCode}): ${errorMessage || messageStatus}${twilioErrorHint(errorCode)}`
         : `Failed: ${messageStatus}${errorMessage ? ` — ${errorMessage}` : ""}`;
 
     await prisma.sequenceStep.update({

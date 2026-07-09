@@ -1,6 +1,7 @@
 import prisma from "../prisma";
 import { SettingsService } from "../../modules/settings/settings.service";
 import { toE164 } from "../utils/phone";
+import { twilioErrorHint } from "./twilio-errors";
 
 // ── TextMagic ───────────────────────────────────────────────────────
 
@@ -118,8 +119,17 @@ const sendTwilioSms = async (
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Twilio API error (${response.status}): ${error}`);
+    const raw = await response.text();
+    let code = 0;
+    let message = raw;
+    try {
+      const err = JSON.parse(raw) as { code?: number; message?: string };
+      code = Number(err.code) || 0;
+      message = err.message || raw;
+    } catch {
+      /* keep the raw body */
+    }
+    throw new Error(`Failed (${code || response.status}): ${message}${twilioErrorHint(code)}`);
   }
 };
 
