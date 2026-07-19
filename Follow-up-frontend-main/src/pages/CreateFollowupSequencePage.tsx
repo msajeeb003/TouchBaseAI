@@ -352,6 +352,15 @@ export default function CreateFollowupSequencePage() {
   const buildChannelsPayload = (): StepType[] =>
     CHANNEL_ORDER.filter((k) => channels[k]).map((k) => CHANNEL_TO_STEPTYPE[k]!).filter(Boolean) as StepType[];
 
+  // Which wizard step is active, derived from real progress so the stepper
+  // reflects activity instead of staying frozen on step 1. Steps before it show
+  // as complete, steps after as pending.
+  //   0 Choose Goal / 1 Configure  → pre-generate setup
+  //   2 Generate                   → AI is building the sequence
+  //   3 Review                     → a sequence has been generated
+  //   4 Activate                   → sequence is live
+  const currentStep = seqStatus === "active" ? 4 : sequenceId ? 3 : isGenerating ? 2 : 0;
+
   /* ----------------------------- Actions ----------------------------- */
 
   // Surface per-step AI generation outcomes so failures (bad key, wrong
@@ -736,19 +745,20 @@ export default function CreateFollowupSequencePage() {
               {/* Stepper */}
               <ol className="mb-7 flex items-center">
                 {STEPS.map((s, i) => {
-                  const active = i === 0;
+                  const done = i < currentStep;
+                  const active = i === currentStep;
                   return (
                     <li key={s.title} className="flex items-center" style={i < STEPS.length - 1 ? { flex: 1 } : undefined}>
                       <div className="flex items-center gap-2.5">
-                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition ${active ? "bg-indigo-600 text-white shadow-sm shadow-indigo-200" : "bg-gray-100 text-gray-400"}`}>
-                          {i + 1}
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition ${done ? "bg-indigo-100 text-indigo-700" : active ? "bg-indigo-600 text-white shadow-sm shadow-indigo-200" : "bg-gray-100 text-gray-400"}`}>
+                          {done ? <Check className="h-4 w-4" strokeWidth={3} /> : i + 1}
                         </span>
                         <div className="hidden md:block">
-                          <p className={`text-sm font-semibold leading-tight ${active ? "text-indigo-700" : "text-gray-700"}`}>{s.title}</p>
+                          <p className={`text-sm font-semibold leading-tight ${done ? "text-indigo-600" : active ? "text-indigo-700" : "text-gray-700"}`}>{s.title}</p>
                           <p className="text-xs leading-tight text-gray-400">{s.sub}</p>
                         </div>
                       </div>
-                      {i < STEPS.length - 1 && <span className={`mx-3 hidden h-px flex-1 md:block ${i === 0 ? "bg-indigo-200" : "bg-gray-200"}`} />}
+                      {i < STEPS.length - 1 && <span className={`mx-3 hidden h-px flex-1 md:block transition-colors ${i < currentStep ? "bg-indigo-300" : "bg-gray-200"}`} />}
                     </li>
                   );
                 })}
