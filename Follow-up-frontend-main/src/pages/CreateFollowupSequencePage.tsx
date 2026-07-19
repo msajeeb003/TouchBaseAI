@@ -130,8 +130,8 @@ const CHANNEL_TO_STEPTYPE: Record<ChannelKey, StepType | null> = {
   linkedin: null,
   instagram: null,
 };
-/** Order channels are cycled into the sequence (mirrors the sample: SMS first). */
-const CHANNEL_ORDER: ChannelKey[] = ["sms", "email", "whatsapp", "aiCall"];
+/** Order channels are cycled into the sequence (Email leads, then SMS, etc.). */
+const CHANNEL_ORDER: ChannelKey[] = ["email", "sms", "whatsapp", "aiCall"];
 
 type ChannelMeta = { name: string; icon: LucideIcon; text: string; chip: string };
 const CHANNEL_META: Record<string, ChannelMeta> = {
