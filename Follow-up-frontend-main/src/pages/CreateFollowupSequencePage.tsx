@@ -1121,16 +1121,16 @@ export default function CreateFollowupSequencePage() {
                 })}
               </div>
 
-              <div className="relative mt-3">
+              <div className="relative mt-3 flex justify-center">
                 <button
                   onClick={(e) => { e.stopPropagation(); setAddMenuOpen((v) => !v); }}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 py-3 text-sm font-medium text-gray-500 transition-all duration-150 hover:border-indigo-400 hover:bg-indigo-50/50 hover:text-indigo-600 active:scale-[0.99]"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-4 py-1.5 text-xs font-medium text-gray-500 transition-all duration-150 hover:border-indigo-400 hover:bg-indigo-50/50 hover:text-indigo-600 active:scale-[0.98]"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                   Add Step
                 </button>
                 {addMenuOpen && (
-                  <div className="absolute bottom-14 left-1/2 z-20 w-56 -translate-x-1/2 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                  <div className="absolute bottom-10 left-1/2 z-20 w-56 -translate-x-1/2 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
                     <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Choose a channel</p>
                     {ADDABLE_CHANNELS.map((ch) => {
                       const m = CHANNEL_META[ch];
