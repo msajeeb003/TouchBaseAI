@@ -167,14 +167,40 @@ type DisplayStep = {
   status?: string;
 };
 
-/** Sample steps shown as a design preview before a real sequence is generated. */
-const SAMPLE_STEPS: DisplayStep[] = [
-  { key: "s1", channel: "SMS", delay: "Now", preview: "Hi Art, I tried reaching you earlier but couldn't connect. Are you still open to a quick chat this week?" },
-  { key: "s2", channel: "Email", delay: "+1 day", subject: "Following up on our conversation", preview: "Hi Art, I hope you're doing well. I wanted to follow up on our conversation..." },
-  { key: "s3", channel: "WhatsApp", delay: "+2 days", preview: "Hi Art! Just checking in 🙂 Let me know if a quick call this week works for you." },
-  { key: "s4", channel: "AI Call", delay: "+3 days", preview: "AI will call and leave a personalized voicemail asking to reschedule a call.", script: true },
-  { key: "s5", channel: "Email", delay: "+5 days", subject: "Should we reschedule?", preview: "Just circling back one more time. Happy to find a time that works for you!" },
-];
+/** Placeholder copy per channel, used by the pre-generation preview. */
+const PREVIEW_COPY: Record<string, { subject?: string; text: string }> = {
+  Email: {
+    subject: "Following up on our conversation",
+    text: "Hi Art, I hope you're doing well. I wanted to follow up on our conversation...",
+  },
+  SMS: { text: "Hi Art, I tried reaching you earlier but couldn't connect. Are you still open to a quick chat this week?" },
+  WhatsApp: { text: "Hi Art! Just checking in 🙂 Let me know if a quick call this week works for you." },
+  "AI Call": { text: "AI will call and leave a personalized voicemail asking to reschedule a call." },
+};
+
+/**
+ * Steps shown before a real sequence is generated. Built by cycling the
+ * channels the user actually picked over their chosen cadence — the same way
+ * the backend expands them — so the preview can never contradict what
+ * "Generate Follow-up Sequence" will produce.
+ */
+function buildPreviewSteps(selected: ChannelKey[], cadence: string): DisplayStep[] {
+  if (selected.length === 0) return [];
+  const { totalSteps, intervalDays } = parseCadence(cadence);
+  return Array.from({ length: totalSteps }, (_, i) => {
+    const channel = STEPTYPE_TO_NAME[CHANNEL_TO_STEPTYPE[selected[i % selected.length]]!];
+    const copy = PREVIEW_COPY[channel];
+    const days = i * intervalDays;
+    return {
+      key: `preview-${i}`,
+      channel,
+      delay: days === 0 ? "Now" : days === 1 ? "+1 day" : `+${days} days`,
+      subject: copy.subject ?? null,
+      preview: copy.text,
+      script: channel === "AI Call",
+    };
+  });
+}
 
 const TIPS: { strong: string; rest?: string }[] = [
   { strong: "Best time to reach out:", rest: "Weekdays, 10am – 2pm" },
@@ -261,7 +287,9 @@ export default function CreateFollowupSequencePage() {
     instagram: false,
   });
 
-  const [steps, setSteps] = useState<DisplayStep[]>(SAMPLE_STEPS);
+  const [steps, setSteps] = useState<DisplayStep[]>(() =>
+    buildPreviewSteps(CHANNEL_ORDER.filter((k) => channels[k]), cadence)
+  );
   const [sequenceId, setSequenceId] = useState<string | null>(null);
   const [seqStatus, setSeqStatus] = useState<"draft" | "active" | "paused">("draft");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -360,6 +388,16 @@ export default function CreateFollowupSequencePage() {
   //   3 Review                     → a sequence has been generated
   //   4 Activate                   → sequence is live
   const currentStep = seqStatus === "active" ? 4 : sequenceId ? 3 : isGenerating ? 2 : 0;
+
+  // Keep the pre-generation preview in step with the chosen channels/cadence.
+  // Once a real sequence exists we leave `steps` alone — it holds the real ones.
+  const previewSteps = useMemo(
+    () => buildPreviewSteps(CHANNEL_ORDER.filter((k) => channels[k]), cadence),
+    [channels, cadence]
+  );
+  useEffect(() => {
+    if (!sequenceId) setSteps(previewSteps);
+  }, [previewSteps, sequenceId]);
 
   /* ----------------------------- Actions ----------------------------- */
 
@@ -477,7 +515,7 @@ export default function CreateFollowupSequencePage() {
       showSuccess("Sequence deleted.");
       setSequenceId(null);
       setSeqStatus("draft");
-      setSteps(SAMPLE_STEPS);
+      setSteps(previewSteps);
     } catch (err) {
       showError(apiError(err, "Failed to delete sequence."));
     }
